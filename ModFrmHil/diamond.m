@@ -114,7 +114,6 @@ function DiamondOperatorDefiniteBig(M, J)
     // In the general case, the matrix describes the embedding into the h copies of W.
     // This makes sense since the entire space is cuspidal, but requires different handling.
     
-    // if not assigned M`ModFrmHilDirFacts then
     if easy then 
 	d_J := PermutationMatrix(F_weight,perm);
 	return d_J;
