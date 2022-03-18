@@ -227,10 +227,10 @@ end function;
 intrinsic DiamondOperator(M::ModFrmHil, J::RngOrdIdl) -> Mtrx
 {Returns the matrix representing the diamond operator <J> on M.}
 
-  bool, err, J := checks(M, J, "Hecke");
+  bool, err, J := checks(M, J, "Diamond");
   require bool : err;
  
-  return operator(M, J, "Hecke");
+  return operator(M, J, "Diamond");
 /*
     F_weight := getWeightBaseField(M);
     
