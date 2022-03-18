@@ -12,7 +12,11 @@ freeze;
 //
 //////////////////////////////////////////////////////////////////////////////
 
-import "hackobj.m" : HMF0;
+// hack begins
+// We replace the import by our own function
+// import "hackobj.m" : HMF0;
+import "../hackobj.m" : HMF0;
+// hack ends
 
 import "hecke.m" : please_report, pseudo_inverse, basis_is_honest;
 

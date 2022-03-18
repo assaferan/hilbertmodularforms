@@ -1,7 +1,11 @@
 import "copypaste/definite.m" : HilbertModularSpaceDirectFactors, WeightRepresentation;
-import "copypaste/hackobj.m" : HMF0, IsBianchi, TopAmbient;
+import "copypaste/hackobj.m" : IsBianchi, TopAmbient;
 import "copypaste/precompute.m" : get_rids;
+import "hackobj.m" : HMF0;
 import "hecke.m" : checks, operator, hecke_matrix_field;
+
+/**************** New Attributes **********************/
+declare attributes ModFrmHil : Diamond;
 
 /**************** New intrinsics **********************/
 

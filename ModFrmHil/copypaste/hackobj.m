@@ -14,6 +14,11 @@ freeze;
 *                                                                     *
 ***********************************************************************/
 
+// hack begins
+// We import our replacement function for HMF0
+import "../hackobj.m" : HMF0;
+// hack ends
+
 import "hecke.m"              : basis_matrix, 
                                 basis_is_honest, 
                                 hecke_matrix_field; 
@@ -460,6 +465,7 @@ function is_cached_hmf(QO, F, N, k)
   return false, _;
 end function;
 
+/*
 function HMF0(F, N, Nnew, Chi, k, C)
   M := New(ModFrmHil);
   M`Field := F;
@@ -485,6 +491,7 @@ function HMF0(F, N, Nnew, Chi, k, C)
   end if;
   return M;
 end function;
+*/
 
 // Constructor used for all spaces with NewLevel = 1
 

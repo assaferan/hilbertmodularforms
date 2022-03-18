@@ -7,14 +7,8 @@ import "copypaste/definite.m" : HeckeOperatorDefiniteBig,
                                 DegeneracyDown1DefiniteBig,
 				DegeneracyDownpDefiniteBig;
 import "copypaste/hackobj.m" : IsBianchi, TopAmbient;
-import "copypaste/hecke.m" : basis_is_honest, basis_matrix, make_ideal, restriction;
+import "copypaste/hecke.m" : basis_is_honest, basis_matrix, debug, make_ideal, please_report, restriction;
 import "diamond.m" : DiamondOperatorDefiniteBig;
-
-debug := false;
-
-please_report :=
-"\nPlease send this example to magma-bugs@maths.usyd.edu.au" *
-"\n\nHint: to print the entire input of this session, type %P\n";
 
 function hecke_matrix_field(M : hack := true)
   if assigned M`hecke_matrix_field then

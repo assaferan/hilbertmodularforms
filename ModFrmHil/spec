@@ -1,4 +1,9 @@
 {
   diamond.m
   finitefield.m
+
+  copypaste
+  {
+	+ModFrmHil.spec
+  }
 }
