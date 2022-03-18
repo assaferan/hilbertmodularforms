@@ -1,7 +1,7 @@
-import "copypastefunctions.m" : IsBianchi,
-                                HMF0,
-                                TopAmbient,
-				WeightRepresentation;
+import "copypaste/definite.m" : HilbertModularSpaceDirectFactors, WeightRepresentation;
+import "copypaste/hackobj.m" : HMF0, IsBianchi, TopAmbient;
+import "copypaste/precompute.m" : get_rids;
+import "hecke.m" : checks, operator, hecke_matrix_field;
 
 /**************** New intrinsics **********************/
 
@@ -10,37 +10,10 @@ intrinsic '*'(a::RngOrdIdl, I::AlgAssVOrdIdl) -> AlgAssVOrdIdl
   return &+[g * I : g in Generators(a)];
 end intrinsic;
 
-/********************************************************/
+// an intrinsic to get the weight base field of a magma space
 
-// originally from hecke.m
-
-function hecke_matrix_field(M : hack := true)
-  if assigned M`hecke_matrix_field then
-    return M`hecke_matrix_field;
-  elif IsBianchi(M) or not IsDefinite(M) then
-    return Rationals();
-  else
-      if hack then
-	  // hack begins
-	  return TopAmbient(M)`weight_base_field;
-	  // hack ends
-      else
-	  return Ambient(M)`weight_base_field;
-      end if;
-  end if;
-end function;
-
-// we compute a Hecke operator to force magma to compute the space
-procedure forceSpaceComputation(M)
-    K := BaseField(M);
-    p := PrimeIdealsOverPrime(K, 2)[1];
-    _ := HeckeOperator(M,p);
-end procedure;
-
-// a function to find the weight base field of a magma space
-
-function getWeightBaseField(M)
-    // is_parallel, w := IsParallelWeight(M);
+intrinsic WeightBaseField(M::ModFrmHil) -> Fld
+{Returns the base field of the weight representation.}
     if not assigned M`weight_base_field then
 	if Seqset(Weight(M)) eq {2} then
 	    return Rationals();
@@ -51,7 +24,8 @@ function getWeightBaseField(M)
 	if assigned M`Ambient and assigned M`Ambient`weight_base_field then
 	    return M`Ambient`weight_base_field;
 	end if;
-	forceSpaceComputation(M);
+	// No choice, we have to compute the weight representation for M
+	_ := WeightRepresentation(M);
 	if assigned M`basis_matrix_wrt_ambient then
 	    return BaseRing(M`basis_matrix_wrt_ambient);
 	end if;
@@ -61,55 +35,49 @@ function getWeightBaseField(M)
     end if;
     assert assigned M`weight_base_field;
     return M`weight_base_field;
-end function;
+end intrinsic;
 
-// TODO : Is this any different than Generators?
-function getIdealGens(I)
-    return &cat[[g*pb[2] : g in Generators(pb[1])] : pb in PseudoBasis(I)];
-end function;
+/********************************************************/
 
-function getEichlerOrder(M, OLI, N)
-    // get the Eichler order corresponding to the level N in OLI
-    Z_K := BaseRing(OLI);
-//    HMDF := M`ModFrmHilDirFacts;
-//    N := HMDF[1]`PLD`Level;
-    basis_OLI := getIdealGens(OLI);
+// get the Eichler order corresponding to the level N in the order LO
+function getEichlerOrder(M, LO, N)
+    R := BaseRing(LO);
+    basis_LO := Generators(LO);
     sm := M`splitting_map;
-    sm_mats := Transpose(Matrix([Eltseq(sm(x)) : x in basis_OLI]));
+    sm_mats := Transpose(Matrix([Eltseq(sm(x)) : x in basis_LO]));
     rels := Matrix([sm_mats[3]]); // we want upper triangular matrices under sm
-    rels := ChangeRing(rels, quo<Z_K | N>);
+    rels := ChangeRing(rels, quo<R | N>);
     ker := Kernel(Transpose(rels));
-    ker_basis := [ChangeRing(v, Z_K) : v in Basis(ker)];
-    a_invs := [&+[v[i]*basis_OLI[i] : i in [1..#basis_OLI]]
+    ker_basis := [ChangeRing(v, R) : v in Basis(ker)];
+    a_invs := [&+[v[i]*basis_LO[i] : i in [1..#basis_LO]]
 	       : v in ker_basis];
-    NOLI := [g*x : g in Generators(N), x in basis_OLI];
-    O := Order(a_invs cat NOLI);
+    NLO := [g*x : g in Generators(N), x in basis_LO];
+    O := Order(a_invs cat NLO);
     // making sure we obtain a suborder of the right discriminant
     assert Discriminant(O) eq N;
-    assert &and[x in OLI : x in getIdealGens(O)];
+    assert &and[x in LO : x in Generators(O)];
     return O;
 end function;
 
-function getEichlerOrderIdeal(M, OLI, a, O, N)
-    Z_K := BaseRing(LeftOrder(OLI));
-    // HMDF := M`ModFrmHilDirFacts;
-    // N := HMDF[1]`PLD`Level;
-    basis_OLI := getIdealGens(OLI);
+// get the right ideal IJ_a of O, corresponding to the P1 representative a
+function getEichlerOrderIdeal(M, I, a, O, N)
+    R := BaseRing(LeftOrder(I));
+    basis_I := Generators(I);
     sm := M`splitting_map;
-    sm_mats := Transpose(Matrix([Eltseq(sm(x)) : x in basis_OLI]));
+    sm_mats := Transpose(Matrix([Eltseq(sm(x)) : x in basis_I]));
     // These are matrices that map to a in P1
     rels := Matrix([a[2,1]*sm_mats[1]-a[1,1]*sm_mats[3]]);
-    rels := ChangeRing(rels, quo<Z_K | N>);
+    rels := ChangeRing(rels, quo<R | N>);
     ker := Kernel(Transpose(rels));
-    ker_basis := [ChangeRing(v, Z_K) : v in Basis(ker)];
-    a_invs := [&+[v[i]*basis_OLI[i] : i in [1..#basis_OLI]]
+    ker_basis := [ChangeRing(v, R) : v in Basis(ker)];
+    a_invs := [&+[v[i]*basis_I[i] : i in [1..#basis_I]]
 	       : v in ker_basis];
-    NOLI := [g*x : g in Generators(N), x in basis_OLI];
-    I := rideal< O | a_invs cat NOLI>;
-    return I;
+    NI := [g*x : g in Generators(N), x in basis_I];
+    IJ := rideal< O | a_invs cat NI>;
+    return IJ;
 end function;
 
-function DiamondOperatorIdealsDefiniteBig(M, J)
+function DiamondOperatorDefiniteBig(M, J)
     assert IsDefinite(M);
     
     // Form here on we assume this is an ambient space
@@ -119,15 +87,11 @@ function DiamondOperatorIdealsDefiniteBig(M, J)
     weight2 := Seqset(Weight(M)) eq {2};
     easy := weight2 and N eq Discriminant(QuaternionOrder(M));
     // easy = basis of big space is given by the rids
-    
-    if (not assigned M`rids) then
-	forceSpaceComputation(M);
-    end if;
-
+  
     // !! TODO : This is now redundant, unless the weight is 2
     // Once we get it to work, fix that
-    F_weight := getWeightBaseField(M);
-    ideal_classes := M`rids;
+    F_weight := WeightBaseField(M);
+    ideal_classes := get_rids(M);
     h := #ideal_classes;
     
     // J acts by left multiplication on the classes of right ideals.
@@ -151,9 +115,8 @@ function DiamondOperatorIdealsDefiniteBig(M, J)
 	d_J := PermutationMatrix(F_weight,perm);
 	return d_J;
     end if;
-    
+    HMDF := HilbertModularSpaceDirectFactors(M);
     sm := M`splitting_map;
-    HMDF := M`ModFrmHilDirFacts;
     nCFD := [#hmdf`CFD : hmdf in HMDF];
     p1reps := [hmdf`PLD`P1Rep : hmdf in HMDF];
     lookups := [hmdf`PLD`Lookuptable : hmdf in HMDF];
@@ -169,25 +132,8 @@ function DiamondOperatorIdealsDefiniteBig(M, J)
 	    IJa := getEichlerOrderIdeal(M, Ii, a, O, N);
 	    Append(~rids, IJa);
 	end for;
-	// debugging
-	/*
-	IJas := [];
-	for a in HMDF[1]`PLD`P1List do
-	    IJa := getEichlerOrderIdeal(M, Ii, a, O, N);
-	    Append(~IJas, IJa);
-	end for;
-	for idx->IJa in IJas do
-	    a := HMDF[1]`PLD`P1List[idx];
-	    for u in HMDF[rid_idx]`max_order_units do
-		target := Index(IJas, u*IJa);
-		_, p1rep := p1reps[rid_idx](sm(u)*a, true, false);
-		assert p1rep eq HMDF[rid_idx]`PLD`P1List[target];
-	    end for;
-	end for;
-       */
     end for;
     h := #rids;
-    F_weight := getWeightBaseField(M);
     wd := M`weight_dimension;
     zero := MatrixAlgebra(F_weight, wd)!0;
     blocks := [[zero : j in [1..h]] : i in [1..h]];
@@ -201,18 +147,14 @@ function DiamondOperatorIdealsDefiniteBig(M, J)
 	    alpha_rep := IdentityMatrix(F_weight, 1);
 	else
 	    alpha_rep := M`weight_rep(alpha);
-	    // alpha_rep *:= Norm(Norm(alpha))^(-CentralCharacter(M) div 2);
-//	    alpha_rep *:= Norm(Norm(alpha))^(-CentralCharacter(M));
 	end if;
-	// blocks[rid_idx][target_idx] := alpha_rep;
 	blocks[target_idx][rid_idx] := alpha_rep;
     end for;
     dJ := BlockMatrix(blocks);
-    // d := Integers()!(1/Determinant(dJ));
     d := Integers()!(Determinant(dJ));
     scale := &*([1] cat [pa[1]^(pa[2] div Nrows(dJ)) :
 			 pa in Factorization(d)]);
-    //    dJ *:= scale;
+//    assert scale eq Norm(J)^(CentralCharacter(M) div 2);
     dJ /:= scale;
     return dJ;
 end function;
@@ -277,35 +219,19 @@ function getActionOnP1Reps(M, J, I_perm)
     return big_perm, alphas, units;
 end function;
 
-// originaly from hecke.m
-function restriction(T, M : hack := true)
-    // needs to force computation of basis_matrix
-    if hack and (not assigned M`basis_matrix) then
-	forceSpaceComputation(M);
-    end if;
-    bm := M`basis_matrix;
-    bmi := M`basis_matrix_inv;
-    bmT := bm * ChangeRing(T, BaseRing(bm));
-    if assigned bmi then
-	TM := bmT * bmi;
-    else
-	// solve bm * TM = bmT
-	TM, K := Solution(bm, bmT);
-	assert Dimension(K) eq 0;
-    end if;
-    return TM;
-end function;
-
 // This function returns the matrix describing the action
 // of the ideal J on the space M of Hilbert modular forms.
 // These are the operators denoted by P(J) in [Voight]
 // and by S(J) in [Shimura]
 
-forward DiamondOperatorDefiniteBig;
-
-intrinsic DiamondOperator(M::ModFrmHil, J::RngOrdIdl) -> AlgMatElt
+intrinsic DiamondOperator(M::ModFrmHil, J::RngOrdIdl) -> Mtrx
 {Returns the matrix representing the diamond operator <J> on M.}
-	  
+
+  bool, err, J := checks(M, J, "Hecke");
+  require bool : err;
+ 
+  return operator(M, J, "Hecke");
+/*
     F_weight := getWeightBaseField(M);
     
     if Dimension(M) eq 0 then
@@ -329,13 +255,15 @@ intrinsic DiamondOperator(M::ModFrmHil, J::RngOrdIdl) -> AlgMatElt
     assert IsDefinite(M);
     MA := TopAmbient(M);
     // This does not work at the moment
-    // We replace with a slow version that might work
+    // We replace with a slow version that actually works
     //dJ_big := DiamondOperatorDefiniteBig(MA, J);
     dJ_big := DiamondOperatorIdealsDefiniteBig(MA,J);
     return restriction(dJ_big, M);
+*/
 end intrinsic;
 
-function DiamondOperatorDefiniteBig(M, J)    
+/*
+function DiamondOperatorDefiniteBigOld(M, J)    
 
     assert IsDefinite(M);
     
@@ -378,7 +306,6 @@ function DiamondOperatorDefiniteBig(M, J)
     // if not assigned M`ModFrmHilDirFacts then
     if easy then 
 	d_J := PermutationMatrix(F_weight,perm);
-//	d_J := Solution(M`basis_matrix, M`basis_matrix * d_J);
 	return d_J;
     end if;
 
@@ -397,8 +324,6 @@ function DiamondOperatorDefiniteBig(M, J)
 
     zero := MatrixAlgebra(F_weight, wd)!0;
     blocks := [[zero : j in [1..hh]] : i in [1..hh]];
-    // blocks := [[* KMatrixSpace(F_weight, Nrows(HMDF[i]`basis_matrix),
-//			       Nrows(HMDF[j]`basis_matrix))!0 : j in [1..h]*] : i in [1..h]];
     for rid_idx in [1..h] do
 	target_idx := perm[rid_idx];
 	alpha := alphas[target_idx];
@@ -410,88 +335,41 @@ function DiamondOperatorDefiniteBig(M, J)
 	    else
 		u := units[idx]^(-1);
 		alpha_rep := M`weight_rep(alpha*u);
-		// alpha_rep := M`weight_rep(alpha);
-		// This is somehow wrong!! ??
-		// alpha_rep *:= Norm(Norm(alpha))^(-CentralCharacter(M) div 2);
-		alpha_rep *:= Norm(Norm(alpha))^(-CentralCharacter(M));
-		// target_basis := HMDF[target_idx]`basis_matrix;
-		// alpha_rep := Solution(target_basis, target_basis * alpha_rep);
-		// alpha_rep := M`weight_rep(Norm(alpha));
-		// alpha_rep *:= Norm(Norm(alpha))^(-CentralCharacter(M));
+		
 	    end if;
-	    // blocks[big_perm[idx]][idx] := alpha_rep;
-	    // blocks[target_idx][rid_idx] := alpha_rep;
-	    blocks[idx][big_perm[idx]] := alpha_rep;
+	    blocks[big_perm[idx]][idx] := alpha_rep;
 	end for;
     end for;
-/*
-    blockrows := [* block_row[1] : block_row in blocks *];
-    for j in [2..h] do
-	blockrows := [* HorizontalJoin(blockrows[i], blocks[i][j]) : i in [1..#blocks] *];
-    end for;
 
-    blockmat := blockrows[1];
-
-    for j in [2..h] do
-	blockmat := VerticalJoin(blockmat, blockrows[j]);
-    end for;
-*/
     d_J := BlockMatrix(blocks);
     d := Integers()!(1/Determinant(d_J));
     scale := &*([1] cat [pa[1]^(pa[2] div Nrows(d_J)) : pa in Factorization(d)]);
     d_J *:= scale;
-    // d_J := blockmat;
-
-    // dims := [wd : i in [1..&+nCFD]];
-    // cumdims := [&+dims[1..i] : i in [0..#dims]];
-    // cumdims := [wd*i : i in [0..&+nCFD]];
-    // big_perm := &cat[[cumdims[big_perm[i]]+j : j in [1..dims[i]]] : i in [1..#big_perm]];
+ 
     big_perm := &cat[[wd*(big_perm[i]-1)+j : j in [1..wd]] : i in [1..#big_perm]];
-    /*
-    // cumulative sums for the next line
-    cumdims := [&+dims[1..i] : i in [0..#dims]];
-    // the blockified permutation
-    big_perm := &cat[[cumdims[perm[i]]+j : j in [1..dims[i]]] : i in [1..#perm]];
-
-   */
 
     // This is the operator on the entire space of Hilbert modular forms
-    // d_J := PermutationMatrix(F_weight, big_perm);
     if weight2 then
 	assert d_J eq PermutationMatrix(F_weight, big_perm);
     end if;
-/*    
-    if (M`weight_dimension eq 1) then
-	// This is the operator on the subspace corresponding to M
-	d_J := Solution(M`basis_matrix, M`basis_matrix * d_J);
-    end if;
-*/
+    
     return d_J;
 end function;
+*/
 
 // Here M is a ModFrmHil (HibertCuspForms(M))
 // Currently just works for trivial weight.
 function HeckeCharacterSubspace(M, chi)
     
     K := BaseRing(M);
-    Z_K := Integers(K);
-    cl_K, cl_map := RayClassGroup(Level(M), [1..Degree(K)]);
-    // This should be enough since the restriction of the character to
-    // a Dirichlet character is always trivial, but meanwhile we are on the safe side
-    // cl_K, cl_map := NarrowClassGroup(Z_K);
+    cl_K, cl_map := ClassGroup(K);
     if IsTrivial(cl_K) then
 	return M;
     end if;
     Js := [cl_map(cl_K.i) : i in [1..Ngens(cl_K)]];
     dJs := [<J, DiamondOperator(M,J)> : J in Js];
-
-    // checking that the operators commute with the other Hecke operators
-    check_bound := 10;
-    hecke := [HeckeOperator(M, PrimeIdealsOverPrime(K,p)[1])
-	      : p in PrimesUpTo(check_bound)];
-    assert &and[dJ[2]*T eq T*dJ[2] : T in hecke, dJ in dJs];
     
-    F_weight := getWeightBaseField(M);
+    F_weight := WeightBaseField(M);
     Id_M := IdentityMatrix(F_weight, Dimension(M));
     
     subsp := &meet [Kernel(dJ[2] - chi(dJ[1])*Id_M) : dJ in dJs];

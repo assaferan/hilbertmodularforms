@@ -19,7 +19,7 @@ import "copypastefunctions.m" : random_large_split_prime_using_max_order,
                                 weight_map_arch,
 				minimal_hecke_matrix_field;
 
-import "diamond.m" : hecke_matrix_field;
+import "hecke.m" : hecke_matrix_field;
 
 
 forward WeightRepresentationFiniteField;
