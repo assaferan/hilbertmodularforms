@@ -1,6 +1,7 @@
 {
   Basis.m
   Elements.m
+  EllipticTraces.m
   FldExt.m
   Formatting.m
   GradedPoly.m
