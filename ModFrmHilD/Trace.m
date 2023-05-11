@@ -88,7 +88,7 @@ intrinsic TraceProduct(Mk::ModFrmHilD, mm::RngOrdIdl, aa::RngOrdIdl : precomp :=
       emb := PrecompEmbeddingNumberOverUnitIndex(M, data, NNfact, aa);
       emb := t eq 0 select emb else 2*emb; // Factor of 2 accounts for x^2 +/- bx + a.
     else
-      emb := EmbeddingNumberOverUnitIndex(M, data, NNfact, aa); 
+      emb := EmbeddingNumberOverUnitIndex(M, data, NNfact, aa);
     end if;
     Sumterm +:= wk * emb;
   end for;
@@ -167,8 +167,17 @@ intrinsic HilbertSeriesCusp(M::ModFrmHilDGRng, NN::RngOrdIdl : prec:=false) -> R
   end if;
 end intrinsic;
 
-
-
+intrinsic HilbertSeries(M::ModFrmHilDGRng, NN::RngOrdIdl : prec:=false) -> RngSerPowElt
+  {Compute the Hilbert Series for the full space, Eisenstein and cuspidal}
+  // Hilbert Series for Cusp Space
+  ans := HilbertSeriesCusp(M, NN : prec:=false);
+  R<X> := Parent(ans);
+  // Compute the dimension of the Eisenstein Series
+  Mk := HMFSpace(M,NN,[2,2]);
+  n := NumberOfCusps(Mk);
+  ans +:= n/(1-X^2);
+  return ans;
+end intrinsic;
 
 ///////////////////////////////////////////////////
 //                                               //
@@ -201,7 +210,7 @@ Embedding Numbers over Unit Index
     - OptimalEmbeddingNumbers                          (Computes optimal embedding number for an order x^2 + bx + a using a formula.)
       * Subroutine: PolynomialforOrder                 (Computes a polynomial for the local max order of in the extension (ZK)_pp / ZF_pp above a prime pp with a conductor of bb)
       * Subroutine: PolynomialMaximalOrder             (Computes a polynomial for the local max order of in the extension (ZK)_pp / ZF_pp above a prime pp)
-     
+
 
   * PrecompEmbeddingNumbersOverUnitIndex               (Computes Embedding numbers for an order x^2 + bx + a over a unit index)
     - OptimalEmbedding                                 (Computes optimal embedding number for an order x^2 + bx + a using a formula.)
@@ -335,8 +344,8 @@ intrinsic IndexOfSummation(M::ModFrmHilDGRng, mm::RngOrdIdl, aa::RngOrdIdl : pre
   Indexforsum := [[b,a*u] : b in IdealCMExtensions(M,a*u,aa), u in TotallyPositiveUnits];
   vprintf HMFTrace, 2: "Done\n";
 
-  // Non precomputed version - adjusted to contain both x^2 - bx + au and x^2 + bx + au. 
-  if not precomp then 
+  // Non precomputed version - adjusted to contain both x^2 - bx + au and x^2 + bx + au.
+  if not precomp then
     Indexforsum cat:= [ [-i[1], i[2]] : i in Indexforsum  | i[1] ne 0 ];
   end if;
 
@@ -371,19 +380,19 @@ end intrinsic;
 //                                               //
 ///////////////////////////////////////////////////
 
-// Functions 
+// Functions
 
 function FastArtinSymbol(D, pp, DD)
-  /* {Returns the artin symbol (K/pp) which is 0 if pp ramifies, -1, if pp splits and 
+  /* {Returns the artin symbol (K/pp) which is 0 if pp ramifies, -1, if pp splits and
   1 if pp is inert in the extension K = F(x) / (x^2 - D) where ZK has discrminant DD} */
   // D element of F for generating the field K = F(x) / (x^2 - D)
   // pp prime ideal of F
   // DD discriminant of the maximal order K
-  if DD subset pp then 
+  if DD subset pp then
     return 0;
-  elif IsLocalSquare(D,pp) then 
+  elif IsLocalSquare(D,pp) then
     return 1;
-  else 
+  else
     return -1;
   end if;
 end function;
@@ -407,7 +416,7 @@ end function;
 /////////////////////////////////// Embedding Numbers over Unit index  //////////////////////////////////////////////
 
 intrinsic EmbeddingNumberOverUnitIndex(M::ModFrmHilDGRng, data::SeqEnum, FactNN::SeqEnum, aa::RngOrdIdl) -> RngElt
-  {Returns a count for the number of embeddings of the order S = ZF[x] / x^2 - tx + n into a Eichler order O(nn) of 
+  {Returns a count for the number of embeddings of the order S = ZF[x] / x^2 - tx + n into a Eichler order O(nn) of
   level NN in the definite quaternion algebra B/F with index aa up to units [O(nn)^* : ZF^*]}
   //
   // data = [t, n] coefficients for the polynomial x^2 - tx + n
@@ -415,7 +424,7 @@ intrinsic EmbeddingNumberOverUnitIndex(M::ModFrmHilDGRng, data::SeqEnum, FactNN:
   // Mk HMFSpace (carries field F, ring of integers ZF, level NN, and unit group + unit group map UF, mUF)
   // aa ideal for the diamond operator
   //
-  
+
   // Preliminaries
   ZF := Integers(M);
   F := BaseField(M);
@@ -428,7 +437,7 @@ intrinsic EmbeddingNumberOverUnitIndex(M::ModFrmHilDGRng, data::SeqEnum, FactNN:
   hw := ClassNumberOverUnitIndex(M,K); // Computes h/w where h = class number of K and w = unit index of 2 * [ZK^* : ZF^*]
   ff := Sqrt((D*ZF)/DD); // Conductor
 
-  // Sum over conductors 
+  // Sum over conductors
   conductorsum := 0;
   if ff subset aa then // check if aa divides ff
     for bb in Divisors( ideal< ZF | ff * aa^(-1) > ) do
@@ -454,7 +463,7 @@ end intrinsic;
 /////////////////////////////////// Embedding Numbers over Unit index (Precomputations)  //////////////////////////////////////////////
 
 intrinsic PrecompEmbeddingNumberOverUnitIndex(M::ModFrmHilDGRng, data::SeqEnum, NNfact::SeqEnum, aa::RngOrdIdl) -> RngElt
-  {Returns a count for the number of embeddings of the order S = ZF[x] / x^2 - tx + n into a Eichler order O(nn) of 
+  {Returns a count for the number of embeddings of the order S = ZF[x] / x^2 - tx + n into a Eichler order O(nn) of
   level NN in the definite quaternion algebra B/F with index aa up to units [O(nn)^* : ZF^*]}
   //
   // t, n coefficients for the polynomial x^2 - tx + n
@@ -677,7 +686,6 @@ intrinsic ClassNumberandUnitIndex(M::ModFrmHilDGRng, K::FldNum, D::RngQuadElt, Z
   // Preliminaries //
   // Magma requires absolute extensions for class number and units
   Kabs := AbsoluteField(K);
-  _, mKabs := IsIsomorphic(Kabs,K);
 
   // Class group
   h := ClassNumber(Kabs);
@@ -703,6 +711,8 @@ intrinsic ClassNumberandUnitIndex(M::ModFrmHilDGRng, K::FldNum, D::RngQuadElt, Z
       g := mu_K.1;
       // oddpartw := [p[1]^p[2] : p in Factorization(w) | p[1] ne 2];
       oddpart := Integers()!(w/twopower);
+      b, mKabs := IsIsomorphic(Kabs,K);
+      assert b;
       zeta_2 := mKabs(mapmu_K(oddpart*g)); // zeta_2 is now an element of a CM-extension K/F
       B := Norm(1 + zeta_2);
       // B := 2 + zeta_2 + zeta_2^(-1); // this is the norm from K to F — should be equivalent to 1 + zeta_2 + 1/zeta_2

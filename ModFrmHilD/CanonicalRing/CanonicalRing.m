@@ -229,7 +229,7 @@ intrinsic ConstructGeneratorsAndRelations(
       basis := PrecomputedGens[minimalGenWeight];
 
   elif ComputeNewGenerators then
-      basis := Basis(HMFSpace(M, N, [minimalGenWeight : i in [1..n]]));
+      basis := Basis(HMFSpace(M, N, [minimalGenWeight : i in [1..n]]) : IdealClassesSupport := IdealClassesSupport);
       assert not IsNull(basis);
   else
       msg := "No generators of parallel weight 2 found. Functionality for non-parallel weight "*
@@ -686,7 +686,6 @@ intrinsic HilbertModularVariety(F::FldNum, N::RngOrdIdl, MaxGeneratorWeight::Rng
   S := MakeScheme(Gens, Rels);
   P_wtd<[x]> := Ambient(S);
   eqns_S := DefiningEquations(S);
-  P := Parent(eqns_S[1]);
   return S;
 end intrinsic;
 
@@ -816,4 +815,23 @@ intrinsic GeneratorWeightBound(G::GrpHilbert : experiment:=false) -> Any
     // The only generators not accounted for in the restriction come from below the weight
     // of the section.
     return Maximum(m, Degree(Numerator(poly)));
+end intrinsic;
+
+intrinsic HilbertSeriesSanityCheck(M::ModFrmHilDGRng, NN::RngOrdIdl, I::RngMPol) -> BoolElt
+  {Given an ideal I defining the graded ring, check if its Hilbert series agrees with the one coming from the trace formula}
+  H_trace := HilbertSeries(M,NN);
+  H_test := HilbertSeries(I);
+  printf "series from trace formula = %o\n", H_trace;
+  printf "series from computed graded ring= %o\n", H_test;
+  return H_test eq H_trace;
+end intrinsic;
+
+intrinsic HilbertSeriesSanityCheck(M::ModFrmHilDGRng, NN::RngOrdIdl, R::RngMPolRes) -> BoolElt
+  {Given the graded ring R, check if its Hilbert series agrees with the one coming from the trace formula}
+  return HilbertSeriesSanityCheck(M, NN, PreimageIdeal(ideal< R | 0>));
+end intrinsic;
+
+intrinsic HilbertSeriesSanityCheck(M::ModFrmHilDGRng, NN::RngOrdIdl, S::Sch) -> BoolElt
+  {Given a surface S, check if its Hilbert series agrees with the one coming from the trace formula}
+  return HilbertSeriesSanityCheck(M, NN, Ideal(S));
 end intrinsic;
