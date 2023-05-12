@@ -354,8 +354,7 @@ end intrinsic;
 
 intrinsic HZc1Intersection(Gamma, lambda) -> MonStgElt
     {Computes c1*F_B for F_B associated with lambda using Corollary VII.4.1.}
-    return -2*HZVolume(Gamma, lambda) + HZEllipticIntersection(Gamma, lambda);
-    // Add intersections with cusp resolutions.
+    return -2*HZVolume(Gamma, lambda) + HZEllipticIntersection(Gamma, lambda) + #Cusps(Gamma0(HZLevel(Gamma, lambda)));
 end intrinsic;
 
 intrinsic IsExceptional(Gamma, lambda) -> BoolElt
@@ -413,7 +412,7 @@ intrinsic lambdas(Gamma) -> SeqEnum
     
     lambdas := [ mu/denom : mu in mus ] ;
 
-    lambdas0 := [lambda : lambda in lambdas | HZGenus(Gamma,F!lambda) eq 0];
+    lambdas0 := [lambda : lambda in lambdas | IsExceptional(Gamma, lambda)];
     
     //Clean up the list of lambdas further:
     //if lambda_1 = -lambda_2, only keep one of them.
@@ -499,7 +498,9 @@ intrinsic relevant_elliptic_cycles(Gamma, list) -> SeqEnum
         end if;
     end for;
 
-    return [* ellipticlist, selfintlist, intmatrix *];
+    
+    
+    return [* ellipticlist,selfintlist, intmatrix *];
 end intrinsic;
 
 intrinsic RationalityCriterion(Gamma) -> BoolElt
