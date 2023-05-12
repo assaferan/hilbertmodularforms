@@ -123,11 +123,12 @@ intrinsic DoesCurveIntersectInfty(B::AlgMatElt, N::RngQuadIdl) -> BoolElt, SeqEn
   // to work integrally we scale everything by the norm
   I *:= Norm(N);
   J := sigma(lambda)*Norm(N)*ZF + I;
+  I_primes := [p[1] : p in Factorization(I)];
   // find an S-unit v0 such that v0 is in J
   sunits, m_sunits := SUnitGroup(Norm(N)*ZF);
   gens := [sunits.i : i in [1..Ngens(sunits)]];
-  I_primes := [p[1] : p in Factorization(I)];
-  val_mat := Matrix([[Valuation(m_sunits(g),p) : g in gens] : p in primes]);
+  N_primes := [p[1] : p in Factorization(N)];
+  val_mat := Matrix([[Valuation(m_sunits(g),p) : g in gens] : p in I_primes]);
   val_v0 := Vector([Valuation(J,p) : p in I_primes]);
   v0 := sunits!Eltseq(Solution(Transpose(val_mat), val_v0));
   assert m_sunits(v0) in J;
@@ -136,10 +137,16 @@ intrinsic DoesCurveIntersectInfty(B::AlgMatElt, N::RngQuadIdl) -> BoolElt, SeqEn
   U, mU := UnitGroup(ZF_mod_I);
   xN_mod_I := ZF_mod_I!(-sigma(lambda)*Norm(N)/m_sunits(v0));
   // We are looking for an s-unit xN s.t. xN equiv xN_mod_I mod I
-  I_inv_vecs := Kernel(Transpose(Matrix([[Valuation(m_sunits(g), q) 
-					  : g in gens] : q in I_primes])));
-  I_inv := [sunits!Eltseq(b) : b in Basis(I_inv_vecs)];
-  I_inv_sunits := sub<sunits | I_inv>;
+  J_primes := [p[1] : p in Factorization(I)];
+  if #J_primes gt 0 then
+      I_inv_vecs := Kernel(Transpose(Matrix([[Valuation(m_sunits(g), q) 
+					      : g in gens] : q in J_primes])));
+      I_inv := [sunits!Eltseq(b) : b in Basis(I_inv_vecs)];
+      I_inv_sunits := sub<sunits | I_inv>;
+  else
+      I_inv := gens;
+      I_inv_sunits := sunits;
+  end if;
   sunits_mod := hom<I_inv_sunits -> U | 
 		   [(ZF_mod_I!m_sunits(t))@@mU : t in I_inv]>;
   if (xN_mod_I eq 0) then
@@ -148,34 +155,40 @@ intrinsic DoesCurveIntersectInfty(B::AlgMatElt, N::RngQuadIdl) -> BoolElt, SeqEn
   end if;
   sol_sunits := (xN_mod_I@@mU)@@sunits_mod;
   nm := Norm(m_sunits(v0 + sol_sunits));
+  nm := Rationals()! Determinant(B)*Norm(N)^2 / nm;
   ker_sunits_mod := Kernel(sunits_mod);
   ker_sunits_mod_gens := [ker_sunits_mod.i : i in [1..Ngens(ker_sunits_mod)]];
   norm_mod_gens := [Norm(m_sunits(sunits!g)) : g in ker_sunits_mod_gens];
-  mod_vecs := [[Valuation(F!n,p) : p in primes] cat [(1-Sign(n)) div 2] :
-	       n in norm_mod_gens] cat [[0 : p in primes] cat [2]];
-  res := Vector([Valuation(F!nm,p) : p in primes] cat 
+  mod_vecs := [[Valuation(F!n,p) : p in I_primes] cat [(1-Sign(n)) div 2] :
+	       n in norm_mod_gens] cat [[0 : p in I_primes] cat [2]];
+  res := Vector([Valuation(F!nm,p) : p in I_primes] cat 
 		[(1-Sign(nm)) div 2]);
   if res notin RowSpace(Matrix(mod_vecs)) then
       return false, [];
   end if;
   sol := Solution(Matrix(mod_vecs), res);
+  sol_sunit := sunits!ker_sunits_mod!Eltseq(sol)[1..Degree(sol)-1];
+  // this should be an element of the correct norm and residue
+  assert Norm(m_sunits(sol_sunit)) eq nm;
+  assert ZF_mod_I!m_sunits(sol_sunit) eq 0;
   ker_basis := Lattice(Matrix(Basis(Kernel(Matrix(mod_vecs)))));
   ker_basis_sunits := sub< sunits | [sunits!ker_sunits_mod!Eltseq(sol)[1..Degree(sol)-1] : sol in Basis(ker_basis)]>;
-  vecs := [[Valuation(m_sunits(g),p) : p in primes] cat [(1-Sign(Norm(m_sunits(g)))) div 2] : g in gens] cat [[0 : p in primes] cat [2]];
+  vecs := [[Valuation(m_sunits(g),p) : p in I_primes] cat [(1-Sign(Norm(m_sunits(g)))) div 2] : g in gens] cat [[0 : p in I_primes] cat [2]];
   ker := Kernel(Matrix(vecs));
   tot_pos_unit_gens := [sunits!Eltseq(b)[1..Ngens(sunits)] : b in Basis(ker)];
   tot_pos_unit_sunits := sub<sunits | tot_pos_unit_gens>;
   reps, quo_map := ker_basis_sunits / (ker_basis_sunits meet tot_pos_unit_sunits);
-  sol_sunit := sunits!ker_sunits_mod!Eltseq(sol)[1..Degree(sol)-1];
-  sols := [sol_sunits - sol_sunit + r@@quo_map : r in reps];  
+  // sols := [sol_sunits + sol_sunit + r@@quo_map : r in reps];  
+  sols := [sol_sunits + sol_sunit];
   vs := [m_sunits(s) : s in sols];
   us := [v * m_sunits(v0) : v in vs];
-  assert &and[ZF_mod_I!u eq u_mod_I : u in us];
-  xs := [z0*u : u in us];
-  assert &and[x + sigma(lambda) in I : x in xs];
+  assert &and[ZF_mod_I!u eq xN_mod_I : u in us];
+  xs := [u / Norm(N) : u in us];
+  assert &and[&and[Valuation(x + sigma(lambda),p) ge Valuation(N*b*sqrtD,p) 
+		   : p in N_primes] : x in xs];
   assert &and[Norm(x) eq Determinant(B) : x in xs];
   zs := [(x + sigma(lambda)) / (b*sqrtD) : x in xs];
-  J := b*sqrtD*ZF div (N + b*sqrtD*ZF);
+  // J := b*sqrtD*ZF div (N + b*sqrtD*ZF);
   lams := [];
   for z in zs do
       if (z eq 0) then
@@ -184,7 +197,7 @@ intrinsic DoesCurveIntersectInfty(B::AlgMatElt, N::RngQuadIdl) -> BoolElt, SeqEn
 	  gamma22 := 1;
 	  gamma12 := 0;
       else
-	  gamma21 := Generators(z*J)[1];
+	  gamma21 := Denominator(z); // Generators(z*J)[1];
 	  gamma11 := gamma21 / z;
 	  _, d := IsPrincipal(gamma11*ZF + gamma21*ZF);
 	  gamma11 := gamma11 / d;
