@@ -11,25 +11,6 @@ for i in [1..#ds] do
     es[ds[i]] := e_vals[i];
 end for;
 
-// For K2, vdG only lists the value after blowing down succesively 
-// HZ execptional curves, we need to know how many there are to compare.
-function getHZExceptionalNum(Gamma)
-    assert Norm(Level(Gamma)) eq 1;
-    A := Norm(Component(Gamma));
-    D := Discriminant(Integers(Field(Gamma)));
-    qs := PrimeDivisors(D);
-    Dqs := [PrimeDiscriminant(D,q) : q in qs];
-    s := 2*&*[1 + KroneckerSymbol(Dq,A) : Dq in Dqs];
-    s +:= &*[1 + KroneckerSymbol(Dq, 2*A) : Dq in Dqs];
-    s +:= &*[1 + KroneckerSymbol(Dq, 3*A) : Dq in Dqs] div 2;
-    s +:= (1 - KroneckerSymbol(D,3)^2)* 
-	  &*[1 + KroneckerSymbol(Dq,9*A) : Dq in Dqs];
-    if D eq 105 then
-	s +:= 2;
-    end if;
-    return s;
-end function;
-
 printf "Testing Euler number of level 1, discriminant... D=";
 for d in ds do
     printf "%o ", d;

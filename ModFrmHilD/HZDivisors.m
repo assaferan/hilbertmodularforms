@@ -435,6 +435,222 @@ intrinsic IsPrincipalGenus(bb::RngOrdIdl) -> BoolElt
   return Set(Genus(bb)) eq {1};
 end intrinsic;
 
+intrinsic GetHZExceptionalNum(Gamma::GrpHilbert) -> RngIntElt
+{Returns number of exceptional HZ divisors if the surface is *not rational*;
+ currently only implemented for level 1.}
+
+    require Norm(Level(Gamma)) eq 1 : "Only implemented for level 1";
+
+    A := Norm(Component(Gamma));
+    D := Discriminant(Integers(BaseField(Gamma)));
+    qs := PrimeDivisors(D);
+    Dqs := [PrimeDiscriminant(D,q) : q in qs];
+    s := 2*&*[1 + KroneckerSymbol(Dq,A) : Dq in Dqs];
+    s +:= &*[1 + KroneckerSymbol(Dq, 2*A) : Dq in Dqs];
+    s +:= &*[1 + KroneckerSymbol(Dq, 3*A) : Dq in Dqs] div 2;
+    s +:= (1 - KroneckerSymbol(D,3)^2)*
+          &*[1 + KroneckerSymbol(Dq,9*A) : Dq in Dqs];
+    if D eq 105 then
+        s +:= 2;
+    end if;
+    return s;
+end intrinsic;
+
+intrinsic HZLevel(Gamma::GrpHilbert, lambda::FldNumElt) -> RngIntElt
+    {Given lambda in b^(-1), returns M such that the HZ divisor associated to lambda is X_0(M).}
+    
+    require GammaType(Gamma) eq "Gamma0": "Only implemented for Gamma0";
+    
+    N := Level(Gamma);
+    b := Component(Gamma);
+    
+    ideal1 := Integers() meet b*N*lambda;
+    gen1 := Generators(ideal1)[1];
+    
+    I := Conjugate(BaseField(Gamma)!lambda) * b^(-1);
+    denom := Denominator(I);
+    gen2 := Generators(Integers() meet I*denom)[1]/denom;
+    
+    assert gen1*gen2 in Integers();
+    return  Integers()!AbsoluteValue((gen1*gen2)/Norm(lambda));
+end intrinsic;
+
+intrinsic HZGenus(Gamma::GrpHilbert, lambda::FldNumElt) -> RngIntElt
+    {}
+    M := HZLevel(Gamma, lambda);
+    return Genus(Gamma0(M)); 
+end intrinsic;
+
+intrinsic HZVolume(Gamma::GrpHilbert, lambda::FldNumElt) -> FldRatElt
+    {}
+    M := HZLevel(Gamma, lambda);
+    return (1/6)*Index(Gamma0(M));
+end intrinsic;
+
+intrinsic HZEllipticIntersection(Gamma::GrpHilbert, lambda::FldNumElt) -> FldRatElt
+    {}
+    M := HZLevel(Gamma, lambda);
+    sign := Signature(Gamma0(M))[2];
+    count := 0;
+    for s in sign do
+        if s eq 3 then
+            count := count + 1;
+        end if;
+    end for;
+    return (1/3)*count;
+end intrinsic;
+
+intrinsic HZc1Intersection(Gamma::GrpHilbert, lambda::FldNumElt) -> RngIntElt
+    {Computes c1*F_B for F_B associated with lambda using Corollary VII.4.1.}
+    return -2*HZVolume(Gamma, lambda) + HZEllipticIntersection(Gamma, lambda) + #Cusps(Gamma0(HZLevel(Gamma, lambda)));
+end intrinsic;
+
+intrinsic IsExceptional(Gamma::GrpHilbert, lambda::FldNumElt) -> BoolElt
+    {Given Gamma = Gamma_0(N) and lambda, checks if F_lambda is an exceptional curve on X_Gamma.}
+    if HZc1Intersection(Gamma, lambda) eq 1 and HZGenus(Gamma, lambda) eq 0 then
+        return true;
+    else 
+        return false;
+    end if;
+end intrinsic;
+
+intrinsic EllipticMatricesQ(G::GrpHilbert) -> SeqEnum
+    {Given G = Gamma0(N) in SL_2(Z), returns list of elliptic matrices in G.}
+    elist := EllipticPoints(G);
+    glist := [G|Stabilizer(e,G)  : e in elist];
+    return glist;
+end intrinsic;
+
+intrinsic EllipticMatrices(Gamma::GrpHilbert, lambda::FldNumElt) -> SeqEnum
+    {Returns a list of elements in Gamma corresponding to the elliptic points on F_lambda.}
+    M := HZLevel(Gamma, lambda);
+    G := Gamma0(M);
+    glist := EllipticMatricesQ(G);
+    
+    I := Conjugate(BaseField(Gamma)!lambda)*Component(Gamma)^(-1);
+    denom := Denominator(I);
+    x := Generators(denom*I meet Integers())[1]/denom;
+    y := Conjugate(BaseField(Gamma)!lambda)^(-1)*x;
+    
+    Gammalist := [ Matrix(2, [y,0,0,1])*Matrix(g)* Matrix(2, [y^(-1),0,0,1]) : g in glist];
+    return Gammalist;
+end intrinsic;
+
+intrinsic Lambdas(Gamma::GrpHilbert) -> SeqEnum
+    {List of lambdas such that F_lambda is exceptional on X_Gamma; we think this list is exhaustive.}
+    F := BaseField(Gamma);
+    D := Discriminant(F);
+    DD := &*[ PrimeIdealsOverPrime(F, p[1])[1]^(p[2]) : p in Factorization(D)];
+        
+    ZF := Integers(F);
+    N := Level(Gamma);
+    b := Component(Gamma);
+    binv := b^(-1);
+    denom := Denominator(binv);
+    I := binv*denom;
+    assert IsIntegral(I);
+    I := ZF!!I;
+    
+    list := [];
+    
+    ZF_mod_N, q := quo<ZF | N*DD>;
+    residues := [x@@q : x in ZF_mod_N];
+    
+    mus := { CRT( I, N*DD, ZF!0, x ) : x in residues | not x eq 0 } join {Generators(DD*N*I)[1]};
+    
+    lambdas := [ mu/denom : mu in mus ] ;
+
+    lambdas0 := [lambda : lambda in lambdas | IsExceptional(Gamma, lambda)];
+    
+    //Clean up the list of lambdas further:
+    //if lambda_1 = -lambda_2, only keep one of them.
+    
+    newlambdas := [];
+
+    for lambda in lambdas0 do
+        add := true;
+        if (-lambda in newlambdas) then
+            add := false;
+        else
+            l := Norm(lambda);
+            for f in Factorization(Numerator(l)) do
+                if f[2] ge 1 then
+                    if IsIntegral(F!(lambda/f[1])) and IsIntegral(F!(Conjugate(F!lambda)/f[1])) then
+                        add := false;
+                    end if;
+                end if;
+            end for;
+        end if;
+        
+        if add then
+            Append(~newlambdas, lambda);
+        end if;
+    end for;
+    return newlambdas;
+end intrinsic;
+
+//This function still needs some testing!
+
+intrinsic RelevantEllipticCycles(Gamma::GrpHilbert, list::SeqEnum) -> SeqEnum
+    {Given a list of lambdas and Gamma, compute a list of elliptic cycles (labeled by their self-intersection numbers) that intersect at least one F_lambda, and which lambdas they intersect.
+    The output is a list of lists:
+    [-2, -3, -2, ...]: self-intersection numbers of elliptic cycles,
+    [1, 0, 0, 1, ...]: intersection of F_(lambda_1) which each elliptic cycles,
+    [0, 1, 0, 0, ...]: intersection of F_(lambda_2) which each elliptic cycles,
+    etc.
+    }
+    
+    lambdalist := list;
+    
+    ellipticlist := [];
+    selfintlist := [];
+
+    intmatrix := [];
+    
+    for lambda in lambdalist do
+        intlist := [0 : i in ellipticlist];
+        E := EllipticMatrices(Gamma, lambda);
+        for e in E do
+            assert not e in [Matrix(2, [1, 0, 0, 1]), Matrix(2, [-1, 0, 0, -1])];
+            new := true;
+            for i in [1 .. #ellipticlist] do
+                d := ellipticlist[i];
+                if (e eq d) or (-e eq d) or (e^2 eq d) or (-e^2 eq d) then
+                    // e is equal to d, i.e. F_lambda intersects it
+                    intlist[i] := 1;
+                    new := false;
+                end if;
+            end for;
+            if new then
+                // e is a new elliptic point!
+                Append(~ellipticlist, e);
+                Append(~intlist, 1);
+                if e^2 in [Matrix(2, [1, 0, 0, 1]), Matrix(2, [-1, 0, 0, -1])] then
+                    Append(~selfintlist, -2);
+                elif e^3 in [Matrix(2, [1, 0, 0, 1]), Matrix(2, [-1, 0, 0, -1])] then
+                    Append(~selfintlist, -3);
+                end if;
+            end if;
+        end for;
+        Append(~intmatrix, intlist);
+    end for;
+    
+    //clean up final matrix
+    
+    maxlength := #(intmatrix[#intmatrix]);
+        
+    for i in [1 .. #intmatrix] do
+        list := intmatrix[i];
+        if #list le (maxlength - 1) then
+            intmatrix[i] := list cat [0 : j in [1 .. (maxlength - #list)]];
+        end if;
+    end for;
+
+    
+    
+    return [* ellipticlist,selfintlist, intmatrix *];
+end intrinsic;
+
 // This is not enough. In order to get components correctly in the presence of level structure, we should
 // be able to construct explicit isometries transforming one Hermitian lattice to another, so that we will be
 // able to check how they act on a distinguished line.
