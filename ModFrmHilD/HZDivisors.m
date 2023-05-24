@@ -559,7 +559,7 @@ intrinsic HZLevel(Gamma::GrpHilbert, B::AlgMatElt[FldNum]) -> GrpPSL2
 
     M_a := Ma(Gamma, B);
     Q<i,j> := QuaternionAlgebra(Rationals(), D, -Determinant(B)/D);
-    F_to_Q := hom<F -> Q | i>;
+    F_to_Q := hom<F -> Q | Eltseq(Rows(Matrix([Eltseq(x) : x in [1,sqrtD]])^(-1))[2]) cat [0,0]>;
     basis_O_B := [F_to_Q(s) : s in Basis(S_a)] cat [(F_to_Q(lambda / sqrtD) + j) * F_to_Q(m) : m in Basis(M_a)];
     O_B := QuaternionOrder(basis_O_B);
     
