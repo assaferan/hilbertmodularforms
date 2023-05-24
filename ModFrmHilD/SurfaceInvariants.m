@@ -308,7 +308,304 @@ intrinsic getHZExceptionalNum(Gamma) -> MonStgElt
     return s;
 end intrinsic;
 
+intrinsic HZLevel(Gamma, lambda) -> MonStgElt
+    {Given lambda in b^(-1), returns M such that the HZ divisor associated to lambda is X_0(M).}
+    
+    require GammaType(Gamma) eq "Gamma0": "Only implemented for Gamma0";
+    
+    N := Level(Gamma);
+    b := Component(Gamma);
+    
+    ideal1 := Integers() meet b*N*lambda;
+    gen1 := Generators(ideal1)[1];
+    
+    I := Conjugate(BaseField(Gamma)!lambda) * b^(-1);
+    denom := Denominator(I);
+    gen2 := Generators(Integers() meet I*denom)[1]/denom;
+    
+    assert gen1*gen2 in Integers();
+    return  Integers()!AbsoluteValue((gen1*gen2)/Norm(lambda));
+end intrinsic;
+
+intrinsic HZGenus(Gamma, lambda) -> MonStgElt
+    {}
+    M := HZLevel(Gamma, lambda);
+    return Genus(Gamma0(M)); 
+end intrinsic;
+
+intrinsic HZVolume(Gamma, lambda) -> MonStgElt
+    {}
+    M := HZLevel(Gamma, lambda);
+    return (1/6)*Index(Gamma0(M));
+end intrinsic;
+
+intrinsic HZEllipticIntersection(Gamma, lambda) -> MonStgElt
+    {}
+    M := HZLevel(Gamma, lambda);
+    sign := Signature(Gamma0(M))[2];
+    count := 0;
+    for s in sign do
+        if s eq 3 then
+            count := count + 1;
+        end if;
+    end for;
+    return (1/3)*count;
+end intrinsic;
+
+intrinsic HZc1Intersection(Gamma, lambda) -> MonStgElt
+    {Computes c1*F_B for F_B associated with lambda using Corollary VII.4.1.}
+    return -2*HZVolume(Gamma, lambda) + HZEllipticIntersection(Gamma, lambda) + #Cusps(Gamma0(HZLevel(Gamma, lambda)));
+end intrinsic;
+
+intrinsic IsExceptional(Gamma, lambda) -> BoolElt
+    {Given Gamma = Gamma_0(N) and lambda, checks if F_lambda is an exceptional curve on X_Gamma.}
+    if HZc1Intersection(Gamma, lambda) eq 1 and HZGenus(Gamma, lambda) eq 0 then
+        return true;
+    else 
+        return false;
+    end if;
+end intrinsic;
+
+intrinsic EllipticMatricesQ(G) -> SeqEnum
+    {Given G = Gamma0(N) in SL_2(Z), returns list of elliptic matrices in G.}
+    elist := EllipticPoints(G);
+    glist := [G|Stabilizer(e,G)  : e in elist];
+    return glist;
+end intrinsic;
+
+intrinsic EllipticMatrices(Gamma, lambda) -> SeqEnum
+    {Returns a list of elements in Gamma corresponding to the elliptic points on F_lambda.}
+    M := HZLevel(Gamma, lambda);
+    G := Gamma0(M);
+    glist := EllipticMatricesQ(G);
+    
+    I := Conjugate(BaseField(Gamma)!lambda)*Component(Gamma)^(-1);
+    denom := Denominator(I);
+    x := Generators(denom*I meet Integers())[1]/denom;
+    y := Conjugate(BaseField(Gamma)!lambda)^(-1)*x;
+    
+    Gammalist := [ Matrix(2, [y,0,0,1])*Matrix(g)* Matrix(2, [y^(-1),0,0,1]) : g in glist];
+    return Gammalist;
+end intrinsic;
+
+intrinsic lambdas(Gamma) -> SeqEnum
+    {List of lambdas such that F_lambda is exceptional on X_Gamma; we think this list is exhaustive.}
+    F := BaseField(Gamma);
+    D := Discriminant(F);
+    DD := &*[ PrimeIdealsOverPrime(F, p[1])[1]^(p[2]) : p in Factorization(D)];
+        
+    ZF := Integers(F);
+    N := Level(Gamma);
+    b := Component(Gamma);
+    binv := b^(-1);
+    denom := Denominator(binv);
+    I := binv*denom;
+    assert IsIntegral(I);
+    I := ZF!!I;
+    
+    list := [];
+    
+    ZF_mod_N, q := quo<ZF | N*DD>;
+    residues := [x@@q : x in ZF_mod_N];
+    
+    mus := { CRT( I, N*DD, ZF!0, x ) : x in residues | not x eq 0 } join {Generators(DD*N*I)[1]};
+    
+    lambdas := [ mu/denom : mu in mus ] ;
+
+    lambdas0 := [lambda : lambda in lambdas | IsExceptional(Gamma, lambda)];
+    
+    //Clean up the list of lambdas further:
+    //if lambda_1 = -lambda_2, only keep one of them.
+    
+    newlambdas := [];
+
+    for lambda in lambdas0 do
+        add := true;
+        if (-lambda in newlambdas) then
+            add := false;
+        else
+            l := Norm(lambda);
+            for f in Factorization(Numerator(l)) do
+                if f[2] ge 1 then
+                    if IsIntegral(F!(lambda/f[1])) and IsIntegral(F!(Conjugate(F!lambda)/f[1])) then
+                        add := false;
+                    end if;
+                end if;
+            end for;
+        end if;
+        
+        if add then
+            Append(~newlambdas, lambda);
+        end if;
+    end for;
+    return newlambdas;
+end intrinsic;
+
+//This function still needs some testing!
+
+intrinsic relevant_elliptic_cycles(Gamma, list) -> SeqEnum
+    {Given a list of lambdas and Gamma, compute a list of elliptic cycles (labeled by their self-intersection numbers) that intersect at least one F_lambda, and which lambdas they intersect.
+    The output is a list of lists:
+    [-2, -3, -2, ...]: self-intersection numbers of elliptic cycles,
+    [1, 0, 0, 1, ...]: intersection of F_(lambda_1) which each elliptic cycles,
+    [0, 1, 0, 0, ...]: intersection of F_(lambda_2) which each elliptic cycles,
+    etc.
+    }
+    
+    lambdalist := list;
+    
+    ellipticlist := [];
+    selfintlist := [];
+
+    intmatrix := [];
+    
+    for lambda in lambdalist do
+        intlist := [0 : i in ellipticlist];
+        E := EllipticMatrices(Gamma, lambda);
+        for e in E do
+            assert not e in [Matrix(2, [1, 0, 0, 1]), Matrix(2, [-1, 0, 0, -1])];
+            new := true;
+            for i in [1 .. #ellipticlist] do
+                d := ellipticlist[i];
+                if (e eq d) or (-e eq d) or (e^2 eq d) or (-e^2 eq d) then
+                    // e is equal to d, i.e. F_lambda intersects it
+                    intlist[i] := 1;
+                    new := false;
+                end if;
+            end for;
+            if new then
+                // e is a new elliptic point!
+                Append(~ellipticlist, e);
+                Append(~intlist, 1);
+                if e^2 in [Matrix(2, [1, 0, 0, 1]), Matrix(2, [-1, 0, 0, -1])] then
+                    Append(~selfintlist, -2);
+                elif e^3 in [Matrix(2, [1, 0, 0, 1]), Matrix(2, [-1, 0, 0, -1])] then
+                    Append(~selfintlist, -3);
+                end if;
+            end if;
+        end for;
+        Append(~intmatrix, intlist);
+    end for;
+    
+    //clean up final matrix
+    
+    maxlength := #(intmatrix[#intmatrix]);
+        
+    for i in [1 .. #intmatrix] do
+        list := intmatrix[i];
+        if #list le (maxlength - 1) then
+            intmatrix[i] := list cat [0 : j in [1 .. (maxlength - #list)]];
+        end if;
+    end for;
+
+    
+    
+    return [* ellipticlist,selfintlist, intmatrix *];
+end intrinsic;
+
 intrinsic RationalityCriterion(Gamma) -> BoolElt
+{Checks whether the Rationality Criterion is satisfied.
+ Note 1: Only implemented for Gamma0(N) level.
+ Note 2: only considers diagonal HZ curves, it could be refined by including non-diagonal ones.}
+
+    require GammaType(Gamma) eq "Gamma0": "Only implemented for Gamma0";
+
+    F := BaseField(Gamma);
+
+    //Make a list of intersection numbers of cuspidal resolution cycles.
+    res := CuspsWithResolution(Gamma);
+    self_int_res := [];
+    for x in res do
+      for y in [1..x[4]] do
+          self_int_res cat:= x[3];
+      end for;
+    end for;
+
+    LevelList := [];
+
+    //Make a list of possible exceptional Hirzebruch--Zagier divisors.
+    if Norm(Level(Gamma)) eq 1 then //vdG VII.4 gives the following
+        A := Component(Gamma);
+        if Norm(A) eq 1 then
+        Append(~LevelList, 1);
+        Append(~LevelList, 4);
+        Append(~LevelList, 9);
+        end if;
+
+        if NormEquation(F, 2*Norm(A)) then //2 is the norm of an ideal in the genus of A.
+        Append(~LevelList, 2);
+        end if;
+
+        if NormEquation(F, 3*Norm(A)) then //3 is the norm of an ideal in the genus of A.
+        Append(~LevelList, 3);
+        end if;
+
+        if #LevelList eq 0 then
+          vprintf HilbertModularForms: "No exceptional HZ divisors found";
+          return false;
+        end if;
+
+        //Compute intersections of HZ divisors with cusps.
+        IntList := [];
+        for M in LevelList do
+          HZInt := HZCuspIntersection(Gamma, M);
+            
+          HZIntList := [];
+          assert #HZInt eq #res;
+          for i in [1 .. #HZInt] do
+            for j in [1 .. res[i][4]] do
+              HZIntList cat:= HZInt[i];
+            end for;
+          end for;
+          Append(~IntList, HZIntList);
+        end for;
+        
+        //Blow down any subset of the HZ divisors and check if we have a good configuration.
+        for I in Subsets({1 .. #LevelList}) do
+          if #I eq 0 then //Without blowing down, nothing to do.
+            continue;
+          else
+            // List of indices s.t. boundary curve is now exceptional
+            exc_indices := [i : i in [1 .. #self_int_res] |
+                            self_int_res[i] + &+[ IntList[j][i] : j in I] eq -1];
+
+            if #exc_indices le 1 then //One (-1)-curve is not enough!
+              continue;
+            end if;
+
+            // For each two blown down expectional boundary curves, do they intersect?
+
+            for S in Subsets(Set(exc_indices), 2) do
+              T := SetToSequence(S);
+              for j in I do
+                if IntList[j][T[1]] ne 0 and IntList[j][T[2]] ne 0 then
+                  vprintf HilbertModularForms: "Blow down curves F_N for N in %o\n", LevelList[SetToSequence(I)];
+                  return true;
+                end if;
+              end for;
+            end for;
+          end if;
+
+        end for;
+
+    
+    else // We consider HZ divisors associated to lambda.
+        N := Level(Gamma);
+        b := Component(Gamma);
+
+        
+//        N := Generator(Level(Gamma) meet Integers());
+//        require Norm(Component(Gamma)) eq 1: "Only principal genus supported for higher level.";
+//        if N in [1 .. 10] cat [12, 13, 16, 18, 25] then
+//        Append(~LevelList, N^2);
+//        end if;
+    end if;
+
+    return false;
+end intrinsic;
+
+
+intrinsic OldRationalityCriterion(Gamma) -> BoolElt
 {Checks whether the Rationality Criterion is satisfied.
  Note 1: Only implemented for Gamma0(N) level.
  Note 2: it could be refined by including more Hirzebruch--Zagier divisors and resolution cycles 
