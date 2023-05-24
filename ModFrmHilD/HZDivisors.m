@@ -95,7 +95,7 @@ intrinsic GetPossibleThetas(Gamma::GrpHilbert, N::RngIntElt) -> SeqEnum[Assoc]
 	ZFmodpv, red := quo<ZF | frakp^Valuation(D,p)>;
 	if (p eq 2) and (v eq 2) then
 	    d := SquareFree(D);
-	    thetas := [1@@red, Sqrt(ZFmodpv!d)@@red];
+	    thetas := [1@@red, Sqrt(ZF!d)];
 	else
 	    x := Sqrt(ZFmodpv!Norm(b)*N)@@red;
 	    thetas := [x, -x];
@@ -235,6 +235,8 @@ intrinsic GetHZComponent(Gamma::GrpHilbert, theta::Assoc, eta::Assoc, N::RngIntE
 	assert g^(-1)*lambda notin bb^(-1);
     end if;
     B := Matrix([[a*sqrtD, lambda], [-sigma(lambda), Norm(bb)^(-1)*b*sqrtD]]);
+    assert IsThetaEqual(Gamma,Theta(Gamma,B),theta);
+    assert IsEtaEqual(Gamma,Eta(Gamma,B),eta);
     return B;
 end intrinsic;
 
@@ -475,16 +477,132 @@ intrinsic HZLevel(Gamma::GrpHilbert, lambda::FldNumElt) -> RngIntElt
     return  Integers()!AbsoluteValue((gen1*gen2)/Norm(lambda));
 end intrinsic;
 
+function Ma(Gamma, B)
+    N := Level(Gamma);
+    b := Component(Gamma);
+    F := BaseField(Gamma);
+    ZF := Integers(F);
+    D := Discriminant(ZF);
+    sqrtD := Sqrt(F!D);
+    sigma := Automorphisms(F)[2];
+    
+    a := Integers()!(B[1,1] / sqrtD);
+    lambda := B[1,2];
+    
+    basis := Basis(a^(-1)*N*b);
+    
+    r := [Rationals()!((lambda * x - sigma(lambda*x)) / sqrtD) : x in basis];
+    m := [Numerator(x) : x in r];
+    n := [Denominator(x) : x in r];
+    d := GCD(n[1],n[2]);
+    _, _, m2inv := XGCD(d,m[2]);
+    assert (m2inv*m[2] - 1) mod d eq 0;
+    Ma_basis := [(n[1] div d) * basis[1] - (n[2] div d) * m2inv * m[1] * basis[2], n[2]*basis[2]];
+    
+    return ideal<ZF | Ma_basis>;
+end function;
+
+function left_colon_single(row)
+    row := Eltseq(row);
+    m := [Numerator(x) : x in row];
+    n := [Denominator(x) : x in row];
+    d := GCD(n[1],n[2]);
+    _, _, m2inv := XGCD(d,m[2]);
+    assert (m2inv*m[2] - 1) mod d eq 0;
+    basis := [[(n[1] div d), - (n[2] div d) * m2inv * m[1]], [0,n[2]]];
+    lat_d := LatticeWithBasis(Matrix(basis));
+    assert IsIntegral(lat_d);
+    alpha_lat_basis := [(Vector(Rationals(), x), Vector(row)) : x in Basis(lat_d)];
+    assert &and[IsIntegral(x) : x in Eltseq(alpha_lat_basis)];
+    return lat_d;
+end function;
+
+ // find all vectors v in Z^2 such that alpha*v in Z^2
+function left_colon(alpha)
+    lrows := [left_colon_single(row) : row in Rows(alpha)];
+    return &meet lrows;
+end function;
+
+intrinsic MatrixRingMap(O::AlgQuatOrd) -> Map
+{For a maximal order O in a split quaternion algebra returns an isomorphism from O to the matrix ring over the base.}
+  require IsMaximal(O) : "Order must be maximal.";
+  B := Algebra(O);
+  is_split, _, phi := IsMatrixRing(B : Isomorphism);
+  require is_split : "Quaternion algebra must be split.";
+  basis := [phi(x) : x in Basis(O)];
+  left_O := &meet [left_colon(alpha) : alpha in basis];
+  assert &and[&and[IsIntegral(y) : y in Eltseq(Vector(Rationals(),x)*Transpose(alpha))]
+	      : alpha in basis, x in Basis(left_O)];
+  g := ChangeRing(Transpose(BasisMatrix(left_O)), Rationals());
+  assert &and[&and[IsIntegral(y) : y in Eltseq(g^(-1)*phi(x)*g)] : x in Basis(O)];
+  M2Q := Codomain(phi);
+  return map< B -> M2Q | x :-> g^(-1)*phi(x)*g >;
+end intrinsic;
+
+intrinsic HZLevel(Gamma::GrpHilbert, B::AlgMatElt[FldNum]) -> GrpPSL2
+{Given a skew-Hermitian matrix B, returns H such that the HZ divisor associated to lambda is X(H).}
+    
+    require GammaType(Gamma) eq "Gamma0": "Only implemented for Gamma0";
+
+    lambda := B[1,2];
+
+    N := Level(Gamma);
+    b := Component(Gamma);
+    F := BaseField(Gamma);
+    ZF<omega> := Integers(F);
+    D := Discriminant(ZF);
+    sqrtD := Sqrt(F!D);
+    
+    a := Integers()!(B[1,1] / sqrtD);
+    S_a := Order([F!1, a*F!(omega)]);
+    assert Norm(Conductor(S_a)) eq Abs(a);
+
+    M_a := Ma(Gamma, B);
+    Q<i,j> := QuaternionAlgebra(Rationals(), D, -Determinant(B)/D);
+    F_to_Q := hom<F -> Q | i>;
+    basis_O_B := [F_to_Q(s) : s in Basis(S_a)] cat [(F_to_Q(lambda / sqrtD) + j) * F_to_Q(m) : m in Basis(M_a)];
+    O_B := QuaternionOrder(basis_O_B);
+    
+    N_B := Level(O_B);
+
+    if (N_B eq 1) then
+	return Gamma0(1);
+    end if;
+    
+    phi := MatrixRingMap(MaximalOrder(O_B));
+
+    M2ZN := MatrixRing(Integers(N_B),2);
+    // !! TODO : This is highly inefficient, needs to find some way to do it efficiently.
+    // However, Magma refuses to do almost anything with the type M2ZN
+    all_elts := {M2ZN!&+[a[i]*phi(Basis(O_B)[i]) : i in [1..4]] : a in CartesianPower([0..N_B-1],4)};
+    coset_reps := [x : x in all_elts | Determinant(x) ne 0];
+    H := sub<GL(2,Integers(N_B)) | coset_reps>;
+    
+    return PSL2Subgroup(H);
+end intrinsic;
+
 intrinsic HZGenus(Gamma::GrpHilbert, lambda::FldNumElt) -> RngIntElt
-    {}
+{}
     M := HZLevel(Gamma, lambda);
     return Genus(Gamma0(M)); 
+end intrinsic;
+
+intrinsic HZGenus(Gamma::GrpHilbert, B::AlgMatElt[FldNum]) -> RngIntElt
+{}
+    G_B := HZLevel(Gamma, B);
+    return Genus(G_B); 
 end intrinsic;
 
 intrinsic HZVolume(Gamma::GrpHilbert, lambda::FldNumElt) -> FldRatElt
     {}
     M := HZLevel(Gamma, lambda);
     return (1/6)*Index(Gamma0(M));
+end intrinsic;
+
+intrinsic HZVolume(Gamma::GrpHilbert, B::AlgMatElt[FldNum]) -> FldRatElt
+{}
+    G_B := HZLevel(Gamma, B);
+    return (1/6)*Index(G_B);
 end intrinsic;
 
 intrinsic HZEllipticIntersection(Gamma::GrpHilbert, lambda::FldNumElt) -> FldRatElt
@@ -498,11 +616,38 @@ intrinsic HZEllipticIntersection(Gamma::GrpHilbert, lambda::FldNumElt) -> FldRat
         end if;
     end for;
     return (1/3)*count;
+ end intrinsic;
+
+intrinsic HZEllipticIntersection(Gamma::GrpHilbert, B::AlgMatElt[FldNum]) -> FldRatElt
+{}
+    G_B := HZLevel(Gamma, B);
+    sign := Signature(G_B)[2];
+    count := 0;
+    for s in sign do
+        if s eq 3 then
+            count := count + 1;
+        end if;
+    end for;
+    return (1/3)*count;
 end intrinsic;
 
 intrinsic HZc1Intersection(Gamma::GrpHilbert, lambda::FldNumElt) -> RngIntElt
     {Computes c1*F_B for F_B associated with lambda using Corollary VII.4.1.}
     return -2*HZVolume(Gamma, lambda) + HZEllipticIntersection(Gamma, lambda) + #Cusps(Gamma0(HZLevel(Gamma, lambda)));
+end intrinsic;
+
+intrinsic HZc1Intersection(Gamma::GrpHilbert, B::AlgMatElt[FldNum]) -> RngIntElt
+{Computes c1*F_B for F_B associated with lambda using Corollary VII.4.1.}
+    return -2*HZVolume(Gamma, B) + HZEllipticIntersection(Gamma, B) + #Cusps(HZLevel(Gamma, B));
+end intrinsic;
+
+intrinsic IsExceptional(Gamma::GrpHilbert, B::AlgMatElt[FldNum]) -> BoolElt
+ {Given Gamma = Gamma_0(N) and B, checks if F_B is an exceptional curve on X_Gamma.}
+    if HZc1Intersection(Gamma, B) eq 1 and HZGenus(Gamma, B) eq 0 then
+        return true;
+    else 
+        return false;
+    end if;
 end intrinsic;
 
 intrinsic IsExceptional(Gamma::GrpHilbert, lambda::FldNumElt) -> BoolElt

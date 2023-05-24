@@ -7,6 +7,8 @@ procedure testHZDivisor1(Gamma)
     else
 	assert #comps1 eq 0;
     end if;
+    assert &and[HZc1Intersection(Gamma,B) eq 1 : B in comps1];
+    assert &and[IsExceptional(Gamma,B) : B in comps1];
     return;
 end procedure;
 

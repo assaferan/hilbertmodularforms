@@ -1,6 +1,7 @@
 // Configuration file for the code in this repository
 
 AttachSpec("spec");
+AttachSpec("ModFrmGL2/ModFrmGL2/ModFrmGL2.spec");
 
 // Remove word wrapping in text output
 SetColumns(0);
