@@ -575,10 +575,10 @@ intrinsic HZLevel(Gamma::GrpHilbert, B::AlgMatElt[FldNum]) -> GrpPSL2
     // !! TODO : This is highly inefficient, needs to find some way to do it efficiently.
     // However, Magma refuses to do almost anything with the type M2ZN
     all_elts := {M2ZN!&+[a[i]*phi(Basis(O_B)[i]) : i in [1..4]] : a in CartesianPower([0..N_B-1],4)};
-    coset_reps := [x : x in all_elts | Determinant(x) ne 0];
+    coset_reps := [x : x in all_elts | GCD(Determinant(x), N_B) eq 1];
     H := sub<GL(2,Integers(N_B)) | coset_reps>;
     
-    return PSL2Subgroup(H);
+    return PSL2Subgroup(H, false);
 end intrinsic;
 
 intrinsic HZGenus(Gamma::GrpHilbert, lambda::FldNumElt) -> RngIntElt
@@ -848,7 +848,7 @@ end function;
 
 intrinsic IsConjugate(Gamma1::GrpPSL2, Gamma2::GrpPSL2) -> BoolElt
 {True if Gamma1 and Gamma2 are conjugate as subgroups of PSL2.}
-  N := Level(Gamma1);
-  if (N ne Level(Gamma2)) then return false; end if;
+  N := CalcLevel(Gamma1);
+  if (N ne CalcLevel(Gamma2)) then return false; end if;
   return IsConjugate(GL(2,Integers(N)), ImageInLevelGL(Gamma1), ImageInLevelGL(Gamma2));
 end intrinsic;

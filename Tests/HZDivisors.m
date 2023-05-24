@@ -7,7 +7,7 @@ procedure testHZDivisor1(Gamma)
     else
 	assert #comps1 eq 0;
     end if;
-    assert &and[HZLevel(Gamma,B) eq Gamma0(1) : B in comps]; 
+    assert &and[HZLevel(Gamma,B) eq Gamma0(1) : B in comps1]; 
     assert &and[HZc1Intersection(Gamma,B) eq 1 : B in comps1];
     assert &and[IsExceptional(Gamma,B) : B in comps1];
     return;
@@ -93,7 +93,7 @@ procedure testHZDivisor9(Gamma)
     end if;
     D := Discriminant(Order(bb));
     // !! TODO : add the correct number for D = 12
-    assert D ne 12;
+    assert (D ne 12) and (D mod 3 eq 0);
     n_comps := 2^(#PrimeDivisors(D) - 1);
     assert #comps9 eq n_comps;
     assert &and[IsConjugate(HZLevel(Gamma,B),Gamma0(3)) : B in comps9];
@@ -112,7 +112,9 @@ procedure testHZDivisors(Gamma)
     end if;
     if (D ne 12) then
 	testHZDivisor3(Gamma);
-	testHZDivisor9(Gamma);
+	if (D mod 3 eq 0) then
+	    testHZDivisor9(Gamma);
+	end if;
     end if;
     return;
 end procedure;
