@@ -11,6 +11,7 @@
   GradedRing.m
   HJ-CFrac.m
   HZCuspIntersection.m
+  HZDivisors.m
   Hecke.m
   Labels.m
   LinearAlgebra.m
@@ -51,4 +52,5 @@ CanonicalRing
   CanonicalRing.m
   HilbertSeries.m
   IntersectionRing.m
+  IO.m
 }

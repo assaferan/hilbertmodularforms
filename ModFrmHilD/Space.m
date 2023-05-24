@@ -362,9 +362,11 @@ intrinsic CuspDimension(Mk::ModFrmHilD : version:="trace") -> RngIntElt
   if not Mk`Ambient then
     version := "builtin";
   end if;
+  /*
   if NarrowClassNumber(Parent(Mk)) ne 1 and not IsTrivial(Character(Mk)) then
     version := "builtin";
   end if;
+  */
   if not assigned Mk`CuspDimension then
     k := Weight(Mk);
     if version eq "builtin" then
@@ -373,11 +375,7 @@ intrinsic CuspDimension(Mk::ModFrmHilD : version:="trace") -> RngIntElt
     else
       M := Parent(Mk);
       ZF := Integers(M);
-      // Edgar: Ben, should one use Strace?
       Mk`CuspDimension := Integers()!Trace(Mk,1*ZF);
-      if SequenceToSet(k) eq Set([2]) then
-        Mk`CuspDimension -:= NarrowClassNumber(M);
-      end if;
     end if;
   end if;
   return Mk`CuspDimension;

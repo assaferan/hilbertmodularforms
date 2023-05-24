@@ -48,7 +48,7 @@ intrinsic IsRealQuadraticField(F::FldNum) -> BoolElt
     return Degree(F) eq 2 and BaseRing(F) eq Rationals() and Discriminant(F) gt 0;
 end intrinsic;
 
-// Main constructor from which all else is derivedn
+// Main constructor from which all else is derived
 intrinsic CongruenceSubgroup(
               AmbientType::MonStgElt,
               GammaType::MonStgElt,
@@ -135,6 +135,11 @@ intrinsic Gamma0(F::FldNum, N::RngOrdIdl) -> GrpHilbert
     return Gamma0(F, N, 1*Integers(F));
 end intrinsic;
 
+intrinsic Gamma0(N::RngOrdIdl) -> GrpHilbert
+{Return the Hilbert Modular group of level N.}
+    return Gamma0(NumberField(Order(N)), N);
+end intrinsic;
+
 intrinsic Gamma0(F::FldNum) -> GrpHilbert
 {Return the Hilbert Modular group over `F`.}
     return Gamma0(F, 1*MaximalOrder(F));
@@ -192,7 +197,7 @@ intrinsic Print(Gamma::GrpHilbert)
     printf "Component: (%o)\n", IdealOneLine(Component(Gamma));
     print "Index: ", Index(Gamma);
     print "Gamma Type:", GammaType(Gamma);
-    print "Supergroup:", AmbientType(Gamma);
+    printf "Supergroup: %o", AmbientType(Gamma);
     return;
 end intrinsic;
 
@@ -465,6 +470,13 @@ intrinsic NumberOfEllipticPoints(Gamma::GrpHilbert) -> RngIntElt
     return #EllipticPointData(Gamma);
 end intrinsic;
 
+intrinsic NumberOfEllipticPoints(Gamma::GrpHilbert, ord::RngIntElt) -> RngIntElt
+{}
+    types := SetToSequence(Keys(EllipticPointData(Gamma)));
+    types := [t: t in types | IntegerTuple(t)[1] eq ord];
+    return &+ [Integers()| EllipticPointData(Gamma)[t]: t in types];
+end intrinsic;
+
 intrinsic NumberOfEllipticPoints(Gamma::GrpHilbert, singType::Tup) -> RngIntElt
 {}
     boo, val := IsDefined(Gamma, singType);
@@ -615,6 +627,28 @@ intrinsic CuspsWithResolution(Gamma::GrpHilbert) -> SeqEnum
   return Cusps(Gamma : WithResolution:=true);
 end intrinsic;
 
+intrinsic LengthOfCuspResolutions(Gamma::GrpHilbert) -> RngIntElt
+{Return the total number of curves appearing in cusp resolutions}
+    return &+ [(#cusp[3]) * cusp[4]: cusp in CuspsWithResolution(Gamma)];    
+end intrinsic;
+
+intrinsic LengthOfEllipticPointResolutions(Gamma::GrpHilbert) -> RngIntElt
+{Return the total number of curves appearing in elliptic point resolutions}
+    res := 0;
+    for rot_factor in Keys(EllipticPointData(Gamma)) do
+        rot_tup := IntegerTuple(rot_factor);
+        n := rot_tup[1];
+        _, len := EllipticPointK2E(n, rot_tup[3]);
+        res +:= len;
+    end for;
+    return res;
+end intrinsic;
+
+intrinsic LengthOfResolutions(Gamma::GrpHilbert) -> RngIntElt
+{Return the total number of curves appearing in the resultion of singularities}
+    return LengthOfCuspResolutions(Gamma) + LengthOfEllipticPointResolutions(Gamma);
+    end intrinsic;
+
 intrinsic WriteCuspDataToRow(G::GrpHilbert, elt::Tup) -> MonStgElt
   {Script for writing cusp data to data table row}
 
@@ -627,3 +661,8 @@ intrinsic WriteCuspDataToRow(G::GrpHilbert, elt::Tup) -> MonStgElt
   return Join([LMFDBLabel(G), LMFDBLabel(MM), ptstr, StripWhiteSpace(Sprint(cf)), Sprint(p)], ":");
 end intrinsic;
 
+intrinsic WriteEllipticPointDataToRow(G::GrpHilbert, r::GrpHilbRotationLabel, nb::RngIntElt) -> MonStgElt
+{Script for writing elliptic point data to table row}
+    n, a, b := Explode(Tuple(r));
+    return Join([LMFDBLabel(G), StripWhiteSpace(Sprint([Integers()|n,a,b])), Sprint(nb)], ":");
+end intrinsic;
