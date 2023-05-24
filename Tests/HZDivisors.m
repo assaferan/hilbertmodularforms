@@ -7,6 +7,7 @@ procedure testHZDivisor1(Gamma)
     else
 	assert #comps1 eq 0;
     end if;
+    assert &and[HZLevel(Gamma,B) eq Gamma0(1) : B in comps]; 
     assert &and[HZc1Intersection(Gamma,B) eq 1 : B in comps1];
     assert &and[IsExceptional(Gamma,B) : B in comps1];
     return;
@@ -29,6 +30,8 @@ procedure testHZDivisor2(Gamma)
     Dqs := [PrimeDiscriminant(D,q) : q in qs];
     n_comps := &*[1 + KroneckerSymbol(Dq, 2*Norm(aa)) : Dq in Dqs] div 2;
     assert #comps2 eq n_comps;
+    assert &and[IsConjugate(HZLevel(Gamma,B),Gamma0(2)) : B in comps2];
+    assert &and[IsExceptional(Gamma,B) : B in comps2];
     return;
 end procedure;
 
@@ -49,6 +52,9 @@ procedure testHZDivisor3(Gamma)
     Dqs := [PrimeDiscriminant(D,q) : q in qs];
     n_comps := &*[1 + KroneckerSymbol(Dq, 3*Norm(aa)) : Dq in Dqs] div 2;
     assert #comps3 eq n_comps;
+    assert &and[IsConjugate(HZLevel(Gamma,B),Gamma0(3)) : B in comps3];
+    assert &and[HZc1Intersection(Gamma,B) eq 1 : B in comps3];
+    assert &and[IsExceptional(Gamma,B) : B in comps3];
     return;
 end procedure;
 
@@ -69,6 +75,12 @@ procedure testHZDivisor4(Gamma)
 	n_comps := 2^(t-2);
     end if;
     assert #comps4 eq n_comps;
+    if (KroneckerSymbol(D,2) eq 1) then
+	assert &and[IsConjugate(HZLevel(Gamma,B),Gamma0(4)) : B in comps4];
+    end if;
+    if IsEven(D) then
+	assert &and[IsConjugate(HZLevel(Gamma,B),Gamma0(2)) : B in comps4];
+    end if;
     return;
 end procedure;
 
@@ -84,6 +96,8 @@ procedure testHZDivisor9(Gamma)
     assert D ne 12;
     n_comps := 2^(#PrimeDivisors(D) - 1);
     assert #comps9 eq n_comps;
+    assert &and[IsConjugate(HZLevel(Gamma,B),Gamma0(3)) : B in comps9];
+    assert &and[HZc1Intersection(Gamma,B) ge 1 : B in comps9];
     return;
 end procedure;
 

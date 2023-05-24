@@ -844,4 +844,11 @@ function FindIsometry(B1, B2)
     return bc;
 end function;
 
+// !! TODO : Should add these to ModFrmGL2 package, they are quite useful
 
+intrinsic IsConjugate(Gamma1::GrpPSL2, Gamma2::GrpPSL2) -> BoolElt
+{True if Gamma1 and Gamma2 are conjugate as subgroups of PSL2.}
+  N := Level(Gamma1);
+  if (N ne Level(Gamma2)) then return false; end if;
+  return IsConjugate(GL(2,Integers(N)), ImageInLevelGL(Gamma1), ImageInLevelGL(Gamma2));
+end intrinsic;
