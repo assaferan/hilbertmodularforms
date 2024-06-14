@@ -1,8 +1,8 @@
 import !"Geometry/ModFrmHil/definite.m":
   AtkinLehnerDefiniteBig,
   DegeneracyDown1DefiniteBig,
-  DegeneracyDownpDefiniteBig,
-  HeckeOperatorDefiniteBig;
+  DegeneracyDownpDefiniteBig;
+//  HeckeOperatorDefiniteBig;
 import !"Geometry/ModFrmHil/hackobj.m" :
   IsBianchi,
   TopAmbient;
@@ -15,6 +15,7 @@ import !"Geometry/ModFrmHil/hecke.m" :
   please_report,
   restriction;
 
+import "definite.m" : HeckeOperatorDefiniteBig;
 import "hackobj.m" : HMF0;
 import "hecke_field.m" :
   hecke_matrix_field,

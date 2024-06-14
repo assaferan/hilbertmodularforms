@@ -1,29 +1,10 @@
 // copy pasted from precompute.m and modified
+// freeze;
 
-// Given a sequence of units in OF that form a subgroup U of OF*/(OF*)^2 
-// containing N meet Kernel(eps), where N is the group of norms of OH*, this returns units in OF 
-// whose images in OF*/(OF*)^2 form a transversal of U/(N meet Ker(eps))
-
-function units_mod_norms(units, OH : hack := true, eps := 1)
-  OF := BaseRing(OH);
-  UF, unitmap := UnitGroup(OF);
-  UFmod2, mod2 := quo< UF | 2*UF >;
-  norms := {Norm(u) : u in Units(OH)};
-  // hack begins
-  if hack then
-      if IsOne(eps) then
-	  eps := TrivialCharacter(NumberField(OF));
-      end if;
-      N := sub< UFmod2 | [u @@unitmap @mod2 : u in norms | eps(u) eq 1] >;
-  else
-      N := sub< UFmod2 | [u @@unitmap @mod2 : u in norms] >;
-  end if;
-  // hack ends
-  U := sub< UFmod2 | [u @@unitmap @mod2 : u in units] >;
-  assert N subset U;
-  return [t @@mod2 @unitmap : t in Transversal(U,N)];
-end function;
-
+import !"Geometry/ModFrmHil/precompute.m" : convert_tps, debug, gcd_of_quad_form, get_rids, Subideals_of_ideal_newer, units_mod_norms;
+import !"Algebra/AlgQuat/ramified.m" : RealValuations;
+import !"Algebra/AlgAss/enum.m" :      junk_for_IsIsomorphic;
+import !"Algebra/AlgAss/ideals-jv.m" : ColonInternal, has_element_of_norm, IsIsomorphicInternal, Jprime, TotallyPositiveUnits;
 
 ////////////////////////   PRECOMPUTATION   ///////////////////////////
 
@@ -32,7 +13,7 @@ end function;
 // such that P*Ii < t*Ij < Ii and the size of (t*Ij)\Ii is Norm(P)^2
 // (Note that when eP > 1, we don't remove the "non-Hecke elements" here)
 
-procedure precompute_tps_unit_character(OH, P, ridls, record_idx, rows : hack := true, eps := eps)
+procedure precompute_tps(OH, P, ridls, record_idx, rows : hack := true)
 
     H := Algebra(OH);
     F := BaseField(H);  
@@ -86,7 +67,7 @@ procedure precompute_tps_unit_character(OH, P, ridls, record_idx, rows : hack :=
 	    LO`norm_one_units_mod_scalars := [u@n1map : u in n1group];
 	end if;
 	if not assigned LO`pos_scalar_units_mod_norms then
-	    LO`pos_scalar_units_mod_norms := units_mod_norms(pos_units, LO : hack := hack, eps := eps);
+	    LO`pos_scalar_units_mod_norms := units_mod_norms(pos_units, LO);
 	end if;
     end for;
     pos_units_mod_norms := [LeftOrder(I)`pos_scalar_units_mod_norms : I in ridls];
@@ -144,69 +125,69 @@ procedure precompute_tps_unit_character(OH, P, ridls, record_idx, rows : hack :=
 	    ridls_colon_norms_gens[j][i] := (i eq j) select 1 else
 					    ridls_norms_gens[i]/ridls_norms_gens[j] / ClF_reps_diffs_gens[jj][ii];
 	end for;
-if debug then // check by doing it the straightforward O(h^2) way 
-    for j,i in [1..h] do 
-        R := ClFreps[r] where r is Index(ClFelts, ridls_norms_classes[j]-ridls_norms_classes[i]);
-        bool, g := IsNarrowlyPrincipal(R*Norm(ridls[i])/Norm(ridls[j]) : real_places:=real_places,
-                                                                         UnitRealValuations:=UnitRealValuations);  
-        assert bool and g*OF eq g1*OF where g1 is ridls_colon_norms_gens[j][i];
-    end for; 
-end if;
+	if debug then // check by doing it the straightforward O(h^2) way 
+	    for j,i in [1..h] do 
+		R := ClFreps[r] where r is Index(ClFelts, ridls_norms_classes[j]-ridls_norms_classes[i]);
+		bool, g := IsNarrowlyPrincipal(R*Norm(ridls[i])/Norm(ridls[j]) : real_places:=real_places,
+										 UnitRealValuations:=UnitRealValuations);  
+		assert bool and g*OF eq g1*OF where g1 is ridls_colon_norms_gens[j][i];
+	    end for; 
+	end if;
 
-OH`RightIdealClasses[record_idx]`rids_narrow_class_junk := 
-    [* ClF, ClFmap, ClFelts, ClFreps, ridls_norms_classes, inds, ridls_norms_gens, ridls_colon_norms_gens *];
-end if; // assigned junk
-// Look up junk
-ClF, ClFmap, ClFelts, ClFreps, ridls_norms_classes, _, _, ridls_colon_norms_gens 
-:= Explode(OH`RightIdealClasses[record_idx]`rids_narrow_class_junk);
+	OH`RightIdealClasses[record_idx]`rids_narrow_class_junk := 
+	    [* ClF, ClFmap, ClFelts, ClFreps, ridls_norms_classes, inds, ridls_norms_gens, ridls_colon_norms_gens *];
+    end if; // assigned junk
+    // Look up junk
+    ClF, ClFmap, ClFelts, ClFreps, ridls_norms_classes, _, _, ridls_colon_norms_gens 
+    := Explode(OH`RightIdealClasses[record_idx]`rids_narrow_class_junk);
 
-if use_theta then
-    // Try to quickly determine the class of the left order of each subideal using theta series.  
-    // This reduces the number of ideal-isomorphism tests, but means we have to compute the left orders + thetas. 
-    ords_forms := [ [j[2],j[3]] where j is junk_for_IsIsomorphic(LO) : LO in ords ];
-    /* TO DO: use values of short vectors somehow ... it's yielded nothing so far!
-       ords_grams := [ T*j[5]*Transpose(T) where T is Parent(j[5])!j[4] 
-       where j is junk_for_IsIsomorphic(LO) : LO in ords ];
-   */
-    // Note: LO`thetas[1] now computed in RightIdealClassesAndOrders
-    if not &and [assigned LO`thetas : LO in ords] then
-	// check if the second forms are pos def (TO DO: should we arrange this by taking 'a' totally positive?)
-	js := &and[ IsPositiveDefinite(forms[2]) : forms in ords_forms ] select [1,2] else [1];
-	ords_lats := [ [LatticeWithGram(ords_forms[i,j] : CheckPositive:=false) : j in js] : i in [1..#ords] ];
-	dim := 4*Degree(F); 
-	Vol1 := Pi(RealField())^(dim/2) / Gamma(dim/2 + 1); // = volume of unit sphere of this dimension
-	Det_size := Min([ Determinant(ords_forms[i][1]) : i in [1..#ords] ]);
-	theta_prec := Ceiling( (100 * Sqrt(Det_size) / Vol1) ^ (2/dim) );
-	g := GCD([gcd_of_quad_form(ords_forms[i,j]) : i in [1..#ords], j in js]); // lazy
-	theta_prec := (theta_prec div g) * g; // TO DO: ThetaSeries should be smart enough to figure this out!
-	// get theta coefficients up to and including theta_prec
-	vprintf ModFrmHil: "Computing theta series to precision %o ... ", theta_prec; 
-	vtime ModFrmHil:
-    for i := 1 to #ords do
-        ords[i]`thetas := [ThetaSeries(ords_lats[i,j], theta_prec) : j in js];
-    end for;
-vprint ModFrmHil, 3: "Theta series of the left orders are", &cat [LO`thetas : LO in ords];
-else // need js below (this is hacky)
-js := [1..#ords[1]`thetas];
-assert &and [#LO`thetas eq #js : LO in ords];
-end if;
-ords_thetas := [LO`thetas : LO in ords];
-// reset theta_prec to the minimum that distinguishes these pairs of (partial) theta series
-// TO DO: haven't done it properly for pairs 
-    theta_prec := 1;
-    for j := 1 to #ords_thetas[1] do 
-      coeffs := [ [Coefficient(th,n) : n in [1..AbsolutePrecision(th)-1]] where th is thetas[j] 
-                                                                         : thetas in ords_thetas ];
-      coeffs := Sort(Setseq(Seqset(coeffs))); // sort the distinct thetas lexicographically
-      for k := 2 to #coeffs do 
-        i := Min([i : i in [1..#coeffs[k]] | coeffs[k-1][i] ne coeffs[k][i] ]); 
-        theta_prec := Max(theta_prec, i);
-      end for;
-    end for;
-    vprintf ModFrmHil, 2: "Using theta series to precision %o (the %o orders have %o distinct series)\n", 
-                           theta_prec, #ords, #Seqset(ords_thetas);
+    if use_theta then
+	// Try to quickly determine the class of the left order of each subideal using theta series.  
+	// This reduces the number of ideal-isomorphism tests, but means we have to compute the left orders + thetas. 
+	ords_forms := [ [j[2],j[3]] where j is junk_for_IsIsomorphic(LO) : LO in ords ];
+	/* TO DO: use values of short vectors somehow ... it's yielded nothing so far!
+	   ords_grams := [ T*j[5]*Transpose(T) where T is Parent(j[5])!j[4] 
+	   where j is junk_for_IsIsomorphic(LO) : LO in ords ];
+       */
+	// Note: LO`thetas[1] now computed in RightIdealClassesAndOrders
+	if not &and [assigned LO`thetas : LO in ords] then
+	    // check if the second forms are pos def (TO DO: should we arrange this by taking 'a' totally positive?)
+	    js := &and[ IsPositiveDefinite(forms[2]) : forms in ords_forms ] select [1,2] else [1];
+	    ords_lats := [ [LatticeWithGram(ords_forms[i,j] : CheckPositive:=false) : j in js] : i in [1..#ords] ];
+	    dim := 4*Degree(F); 
+	    Vol1 := Pi(RealField())^(dim/2) / Gamma(dim/2 + 1); // = volume of unit sphere of this dimension
+	    Det_size := Min([ Determinant(ords_forms[i][1]) : i in [1..#ords] ]);
+	    theta_prec := Ceiling( (100 * Sqrt(Det_size) / Vol1) ^ (2/dim) );
+	    g := GCD([gcd_of_quad_form(ords_forms[i,j]) : i in [1..#ords], j in js]); // lazy
+	    theta_prec := (theta_prec div g) * g; // TO DO: ThetaSeries should be smart enough to figure this out!
+	    // get theta coefficients up to and including theta_prec
+	    vprintf ModFrmHil: "Computing theta series to precision %o ... ", theta_prec; 
+	    // vtime ModFrmHil:
+	    for i := 1 to #ords do
+		ords[i]`thetas := [ThetaSeries(ords_lats[i,j], theta_prec) : j in js];
+	    end for;
+	    vprint ModFrmHil, 3: "Theta series of the left orders are", &cat [LO`thetas : LO in ords];
+	else // need js below (this is hacky)
+	    js := [1..#ords[1]`thetas];
+	    assert &and [#LO`thetas eq #js : LO in ords];
+	end if;
+	ords_thetas := [LO`thetas : LO in ords];
+	// reset theta_prec to the minimum that distinguishes these pairs of (partial) theta series
+	// TO DO: haven't done it properly for pairs 
+	theta_prec := 1;
+	for j := 1 to #ords_thetas[1] do 
+	    coeffs := [ [Coefficient(th,n) : n in [1..AbsolutePrecision(th)-1]] where th is thetas[j] 
+                        : thetas in ords_thetas ];
+	    coeffs := Sort(Setseq(Seqset(coeffs))); // sort the distinct thetas lexicographically
+	    for k := 2 to #coeffs do 
+		i := Min([i : i in [1..#coeffs[k]] | coeffs[k-1][i] ne coeffs[k][i] ]); 
+		theta_prec := Max(theta_prec, i);
+	    end for;
+	end for;
+	vprintf ModFrmHil, 2: "Using theta series to precision %o (the %o orders have %o distinct series)\n", 
+                              theta_prec, #ords, #Seqset(ords_thetas);
     /* Also use the values of f2 on short vectors of f1 to distinguish pairs 
-    ords_short_vals := [* *];
+    ords_short_vals := [* *]; 
     vprintf ModFrmHil, 1: "Listing values on short vectors ... ", theta_prec; 
     vtime ModFrmHil, 1:
     for i := 1 to #ords_forms do 
@@ -228,349 +209,425 @@ ords_thetas := [LO`thetas : LO in ords];
       svs_vals := { <x, #[y: y in svs_vals | y eq x] > : x in Seqset(svs_vals) }; 
       Append( ~ords_short_vals, svs_vals);
     end for; // i
-ii := Min([i : i in [1..#ords] | #ords_short_vals[i] gt 0 ] cat [1]);
-"The short values are (sample only): ", ords_short_vals[i]; 
-    */
-  end if; // use_theta
+    ii := Min([i : i in [1..#ords] | #ords_short_vals[i] gt 0 ] cat [1]);
+    "The short values are (sample only): ", ords_short_vals[i]; 
+   */
+    end if; // use_theta
 
-  // seems always faster to use_Jprime for the colon calculation 
-  // instead of ColonInternal
-  // However ... the basis obtained when we use_Jprime seems worse,
-  // so the lattice enumeration step then takes longer, eg
-  // around 20% longer for the real subfield of Q(zeta_25) of degree 10.
-  // The enumeration cost dominates running time for degree > 8.
-  use_Jprime := Degree(F) le 8; 
-  if use_Jprime then  
-    if debug then   // make sure ridls are integral ideals, as the Jprime trick assumes
-      for J in ridls do assert &and [zb in OJ : zb in ZBasis(J)] where OJ is RightOrder(J); end for;
+    // seems always faster to use_Jprime for the colon calculation 
+    // instead of ColonInternal
+    // However ... the basis obtained when we use_Jprime seems worse,
+    // so the lattice enumeration step then takes longer, eg
+    // around 20% longer for the real subfield of Q(zeta_25) of degree 10.
+    // The enumeration cost dominates running time for degree > 8.
+    use_Jprime := Degree(F) le 8; 
+    if use_Jprime then  
+	if debug then   // make sure ridls are integral ideals, as the Jprime trick assumes
+	    for J in ridls do assert &and [zb in OJ : zb in ZBasis(J)] where OJ is RightOrder(J); end for;
+	end if;
+	ps := LCM([NP] cat [Integers()| Norm(Norm(J)) : J in ridls ]); 
+	vprintf ModFrmHil, 3: "Getting JJs ... ";  
+	// vtime ModFrmHil, 3:
+	JJs := [ <JJ,b,P> where JJ,b,P is Jprime(J : coprime_to:=ps) : J in ridls ]; 
     end if;
-    ps := LCM([NP] cat [Integers()| Norm(Norm(J)) : J in ridls ]); 
-    vprintf ModFrmHil, 3: "Getting JJs ... ";  
-    vtime ModFrmHil, 3:
-    JJs := [ <JJ,b,P> where JJ,b,P is Jprime(J : coprime_to:=ps) : J in ridls ]; 
-  end if;
 
     // (previously) loop over several Ps started here
 
     bool, tps := IsDefined(OH`RightIdealClasses[record_idx]`tps, P);
     if not bool then
-      tps := AssociativeArray(CartesianProduct([1..h],[1..h]));
+	// hack begins
+	if hack then
+	    tps := AssociativeArray(pos_units);
+	    for u in pos_units do
+		tps[u] := AssociativeArray(CartesianProduct([1..h],[1..h]));
+	    end for;
+	else
+	    tps := AssociativeArray(CartesianProduct([1..h],[1..h])); 
+	end if;
+	// hack ends
     end if;
       
     Pclass := P @@ ClFmap;
     Pclassrep := ClFreps[r] where r is Index(ClFelts, Pclass);
     bool, gP := IsNarrowlyPrincipal(P/Pclassrep : real_places:=real_places, 
-                                    UnitRealValuations:=UnitRealValuations);  assert bool;
+						  UnitRealValuations:=UnitRealValuations);  assert bool;
     gP := F!gP;
     function inds_for_j(j)
-      b := ridls[j];
-      NormbP := Norm(ridls[j])/P; // = Norm(bP) for each bP below
-      NormbP_class := ridls_norms_classes[j] - Pclass;
-      inds := [i : i in [1..h] | ridls_norms_classes[i] eq NormbP_class];
-      return inds, b, NormbP, NormbP_class;
+	b := ridls[j];
+	NormbP := Norm(ridls[j])/P; // = Norm(bP) for each bP below
+	NormbP_class := ridls_norms_classes[j] - Pclass;
+	inds := [i : i in [1..h] | ridls_norms_classes[i] eq NormbP_class];
+	return inds, b, NormbP, NormbP_class;
     end function;
-
+    
     if eP eq 1 then
-      vprintf ModFrmHil: "Getting tp's for prime of norm %o (using \"%o prime method\")\n", 
-                          NP, small_prime select "small" else "large";
+	vprintf ModFrmHil: "Getting tp's for prime of norm %o (using \"%o prime method\")\n", 
+                           NP, small_prime select "small" else "large";
     else
-      vprintf ModFrmHil: "Getting tp's for ideal of norm %o^%o (using \"%o prime method\")\n", 
-                          NPP, eP, small_prime select "small" else "large";
+	vprintf ModFrmHil: "Getting tp's for ideal of norm %o^%o (using \"%o prime method\")\n", 
+                           NPP, eP, small_prime select "small" else "large";
     end if;
     IndentPush(); 
 
     if small_prime then  // quicker to run through subideals
 
-      // Let I1, .., Ih denote the ridls.  
-      // We need Ij < t^-1*Ii with norm-index P. 
-      // Writing b for Ij, list the (NP+1) P-super-ideals bP of b.  
-      // For each bP, find Ii and t with t*bP = Ii. 
-      // Thus t is determined up to left mult by units of LeftOrder(Ii)
+	// Let I1, .., Ih denote the ridls.  
+	// We need Ij < t^-1*Ii with norm-index P. 
+	// Writing b for Ij, list the (NP+1) P-super-ideals bP of b.  
+	// For each bP, find Ii and t with t*bP = Ii. 
+	// Thus t is determined up to left mult by units of LeftOrder(Ii)
 
-      for j in rows do
-        inds, b, NormbP, NormbP_class := inds_for_j(j);
-        vprintf ModFrmHil, 2: "Subideals"; 
-        vtime ModFrmHil, 2:
-        b_subideals := Subideals_of_ideal_newer(b, P : use_theta:=use_theta );
-        vprintf ModFrmHil, 2: "Ideal isomorphism tests: "; time_iso := Cputime();
-        numtests := 0;
-
-        for bsub in b_subideals do 
-          // Set bP := P^-1 * bsub
-          bPCIs := [ Pinv*CI : CI in CoefficientIdeals(PseudoMatrix(bsub)) ] where Pinv is P^-1;
-          bPmat := Matrix(PseudoMatrix(bsub));
-          bP := rideal< OH | PseudoMatrix(bPCIs, bPmat) : Check:=debug >;
-          if debug then assert Norm(bP) eq NormbP; 
-          else bP`Norm := NormbP; end if; 
-          // Figure out the class of bP as a right ideal of O
-          // ie compute v in A, a in ridls such that  v*a = bP.
-         /* TO DO: figure out whether this makes any sense, and fix syntax now that tps are arrays
-          // Some hocus pocus to guess which inds are more likely:
-          inds_nonzero := [i : i in inds | IsDefined(tps[<j,i>]) and #tps[<j,i>] gt 0]; // indices of ridls which already showed up
-          if #inds_nonzero gt 0 then 
-            // if some ridls tend to occur repeatedly, check those first; 
-            // if they tend to occur at most once, check the others first
-            avg_count := &+[#tps[<j,i>] : i in inds_nonzero] / #inds_nonzero;
-            sgn := (avg_count gt 1.33 or #inds_nonzero eq 1) select 1 else -1; 
-            Sort(~inds, func< i1,i2 | sgn*(#tps[<j,i2>]-#tps[<j,i1>]) >); 
-          end if;
-         */
-          if use_theta then
-            bsub_forms := [j[2],j[3]] where j is junk_for_IsIsomorphic(LeftOrder(bsub));
-          //bsub_gram := T*j[5]*Transpose(T) where T is Parent(j[5])!j[4] 
-          //                                 where j is junk_for_IsIsomorphic(LeftOrder(bsub)); 
-            bsub_lats := [ LatticeWithGram(f : CheckPositive:=false) : f in bsub_forms[js] ];
-            vprintf ModFrmHil,3: "ThetaSeries ... "; 
-            vtime ModFrmHil,3:
-            bsub_thetas := [ ThetaSeries(L, theta_prec) : L in bsub_lats ];
-  /* skip this for now, because it doesn't help with the Gross example (or indeed any example I've seen yet!)
-    assert Minimum(bsub_lats[1]) eq 2*Degree(F);
-            N := 2*Degree(F) + 1;
-            while N le theta_prec do 
-              if Coefficient(bsub_thetas[1], N) gt 0 then break; end if;
-              N +:= 1;
-            end while;
-            if N gt theta_prec or Coefficient(bsub_thetas[1], N) gt 100 then 
-              bsub_short_vals := {};
-            else
-              svs := [ sgn*Matrix(sv[1]) : sv in ShortVectors(bsub_lats[1], N), sgn in [1,-1] ];
-              //bsub_short_vals := Sort([ (sv*bsub_forms[2]*Transpose(sv))[1,1] : sv in svs ]);
-              svs_vals := [ (sv*bsub_gram*Transpose(sv))[1,1] where sv is ChangeRing(sv,F) : sv in svs ];
-              bsub_short_vals := { <x, #[y: y in svs_vals | y eq x] > : x in Seqset(svs_vals) }; 
-            end if;
-  */
-          end if;
-          found_class := false; 
-          for i in inds do
-            // quickly try to rule out some order classes (by looking at short vectors of the pair of forms)
-            if use_theta then 
-              io := order_indices[i];
-              for j in js do
-                if Valuation(bsub_thetas[j] - ords_thetas[io,j]) le theta_prec then 
-                  continue i; 
-                end if; 
-              end for;
-              /*
-              if bsub_short_vals ne ords_short_vals[io] then
-                "short vals don't match"; 
-                continue i; 
-              end if;
-              */
-            end if;
-            numtests +:= 1;
-            if use_Jprime then
-              // scale to make ideal integral, since the Jprime trick assumes this
-              bool, v := IsIsomorphicInternal(NP*bP, ridls[i] : real_places:=real_places,
-                                                                UnitRealValuations:=UnitRealValuations,
-                                                                JJ:=JJs[i] );
-              if bool then v *:= NP; end if;
-            else                                                         
-              bool, v := IsIsomorphicInternal(bP, ridls[i] : real_places:=real_places,
-                                                             UnitRealValuations:=UnitRealValuations );
-            end if;
-            if bool then
-              if debug then assert ridls[i] eq v*bP; end if;
-              ji := <j,i>;
-              if IsDefined(tps, ji) then
-                Append(~tps[ji], v); 
-              else
-                tps[ji] := [v]; 
-              end if;
-              error if found_class, "This ideal is in more than one class!!!\n", bP; // only caught in debug
-              found_class := true; 
-              if not debug then break i; end if;
-            end if;
-          end for; // i
-          error if not found_class, "Failed to find isomorphism class for right ideal\n", bP;
-        end for; // bsub
-        vprintf ModFrmHil, 2: "needed %o tests; time for row = %o sec\n", numtests, Cputime(time_iso);
-
-        for subI in b_subideals do  // these ideals are gonna get deleted, make sure stored data gets deleted too
-         if assigned subI`LeftOrder then 
-          delete subI`LeftOrder`junk_for_IsIsomorphic; end if; end for;
-      
-     end for; // j
-   end if;
-if not small_prime then  // NP large relative to h ==> quicker to run through ideal classes
+	for j in rows do
+            inds, b, NormbP, NormbP_class := inds_for_j(j);
+            vprintf ModFrmHil, 2: "Subideals"; 
+            // vtime ModFrmHil, 2:
+	    b_subideals := Subideals_of_ideal_newer(b, P : use_theta:=use_theta );
+            vprintf ModFrmHil, 2: "Ideal isomorphism tests: "; time_iso := Cputime();
+            numtests := 0;
+	    
+            for bsub in b_subideals do 
+		// Set bP := P^-1 * bsub
+		bPCIs := [ Pinv*CI : CI in CoefficientIdeals(PseudoMatrix(bsub)) ] where Pinv is P^-1;
+		bPmat := Matrix(PseudoMatrix(bsub));
+		bP := rideal< OH | PseudoMatrix(bPCIs, bPmat) : Check:=debug >;
+		if debug then assert Norm(bP) eq NormbP; 
+		else bP`Norm := NormbP; end if; 
+		// Figure out the class of bP as a right ideal of O
+		// ie compute v in A, a in ridls such that  v*a = bP.
+		/* TO DO: figure out whether this makes any sense, and fix syntax now that tps are arrays
+		   // Some hocus pocus to guess which inds are more likely:
+		   inds_nonzero := [i : i in inds | IsDefined(tps[<j,i>]) and #tps[<j,i>] gt 0]; // indices of ridls which already showed up
+		   if #inds_nonzero gt 0 then 
+		   // if some ridls tend to occur repeatedly, check those first; 
+		   // if they tend to occur at most once, check the others first
+		   avg_count := &+[#tps[<j,i>] : i in inds_nonzero] / #inds_nonzero;
+		   sgn := (avg_count gt 1.33 or #inds_nonzero eq 1) select 1 else -1; 
+		   Sort(~inds, func< i1,i2 | sgn*(#tps[<j,i2>]-#tps[<j,i1>]) >); 
+		   end if;
+               */
+		if use_theta then
+		    bsub_forms := [j[2],j[3]] where j is junk_for_IsIsomorphic(LeftOrder(bsub));
+		    //bsub_gram := T*j[5]*Transpose(T) where T is Parent(j[5])!j[4] 
+		    //                                 where j is junk_for_IsIsomorphic(LeftOrder(bsub)); 
+		    bsub_lats := [ LatticeWithGram(f : CheckPositive:=false) : f in bsub_forms[js] ];
+		    vprintf ModFrmHil,3: "ThetaSeries ... "; 
+		    // vtime ModFrmHil,3:
+		    bsub_thetas := [ ThetaSeries(L, theta_prec) : L in bsub_lats ];
+		/* skip this for now, because it doesn't help with the Gross example (or indeed any example I've seen yet!)
+		   assert Minimum(bsub_lats[1]) eq 2*Degree(F);
+		   N := 2*Degree(F) + 1;
+		   while N le theta_prec do 
+		   if Coefficient(bsub_thetas[1], N) gt 0 then break; end if;
+		   N +:= 1;
+		   end while;
+		   if N gt theta_prec or Coefficient(bsub_thetas[1], N) gt 100 then 
+		   bsub_short_vals := {};
+		   else
+		   svs := [ sgn*Matrix(sv[1]) : sv in ShortVectors(bsub_lats[1], N), sgn in [1,-1] ];
+		   //bsub_short_vals := Sort([ (sv*bsub_forms[2]*Transpose(sv))[1,1] : sv in svs ]);
+		   svs_vals := [ (sv*bsub_gram*Transpose(sv))[1,1] where sv is ChangeRing(sv,F) : sv in svs ];
+		   bsub_short_vals := { <x, #[y: y in svs_vals | y eq x] > : x in Seqset(svs_vals) }; 
+		   end if;
+	       */
+		end if;
+		found_class := false; 
+		for i in inds do
+		    // quickly try to rule out some order classes (by looking at short vectors of the pair of forms)
+		    if use_theta then 
+			io := order_indices[i];
+			for j in js do
+			    if Valuation(bsub_thetas[j] - ords_thetas[io,j]) le theta_prec then 
+				continue i; 
+			    end if; 
+			end for;
+		    /*
+		      if bsub_short_vals ne ords_short_vals[io] then
+                      "short vals don't match"; 
+                      continue i; 
+		      end if;
+		   */
+		    end if;
+		    numtests +:= 1;
+		    if use_Jprime then
+			// scale to make ideal integral, since the Jprime trick assumes this
+			bool, v := IsIsomorphicInternal(NP*bP, ridls[i] : real_places:=real_places,
+									  UnitRealValuations:=UnitRealValuations,
+									  JJ:=JJs[i] );
+			if bool then v *:= NP; end if;
+		    else                                                         
+			bool, v := IsIsomorphicInternal(bP, ridls[i] : real_places:=real_places,
+								       UnitRealValuations:=UnitRealValuations );
+		    end if;
+		    if bool then
+			if debug then assert ridls[i] eq v*bP; end if;
+			ji := <j,i>;
+			if IsDefined(tps, ji) then
+			    Append(~tps[ji], v); 
+			else
+			    tps[ji] := [v]; 
+			end if;
+			error if found_class, "This ideal is in more than one class!!!\n", bP; // only caught in debug
+			found_class := true; 
+			if not debug then break i; end if;
+		    end if;
+		end for; // i
+		error if not found_class, "Failed to find isomorphism class for right ideal\n", bP;
+            end for; // bsub
+            vprintf ModFrmHil, 2: "needed %o tests; time for row = %o sec\n", numtests, Cputime(time_iso);
+	    
+            for subI in b_subideals do  // these ideals are gonna get deleted, make sure stored data gets deleted too
+		if assigned subI`LeftOrder then 
+		    delete subI`LeftOrder`junk_for_IsIsomorphic; end if; end for;
+	    
+	end for; // j
+    end if;
+    if not small_prime then  // NP large relative to h ==> quicker to run through ideal classes
 
       // Let I1 .. Ih denote the ridls.  For each pair Ij, Ii, we list all t in H 
       // with t*Ij < Ii and Norm(t*Ij) = P*Norm(Ii), up to mult by scalars, 
       // and then choose reps for t modulo left mult by units of LeftOrder(Ii)
 
-       // hack begins
-       if hack then
-	   vals := Set(ValuesOnGens(eps));
-	   ts_raw := AssociativeArray(vals);
-	   for v in vals do
-	       ts_raw[v] := [];
-	   end for;
-       else
-	   ts_raw := []; // ts_raw[j] will contain raw ts for the jth row
-       end if;
-       // hack ends
+	// hack begins
+	if hack then
+	    ts_raw := AssociativeArray(pos_units);
+	    for u in pos_units do
+		ts_raw[u] := [];
+	    end for;
+	else
+	    ts_raw := []; // ts_raw[j] will contain raw ts for the jth row
+	end if;
+	// hack ends
+	
+	ridls_colonZBs := OH`RightIdealClasses[record_idx]`rids_colonZBs; 
+	
+	for j := 1 to h do 
+            if j notin rows then
+		// hack begins
+		if hack then
+		    for u in pos_units do
+			Append(~ts_raw[u], [[] : i in [1..h]]);
+		    end for;
+		else
+		    Append(~ts_raw, [[] : i in [1..h]]);
+		end if;
+		// hack ends
+		continue;
+            end if;
+	    
+            inds := inds_for_j(j);
+	    
+            // Make sure we know Z-bases for (I:J)'s
+            for i in inds do 
+		// Get a totally positive generator g of the ideal (there exists one, for i in inds)
+		if not IsDefined(ridls_colonZBs, <j,i>) then
+		    vprintf ModFrmHil,3: "Z-basis for I:J (%ousing the J' trick) ... ", 
+                                         use_Jprime select "" else "not "; 
+		    //vtime ModFrmHil,3:
+		    if use_Jprime then 
+			JJ, b := Explode(JJs[j]);  // [I : J] = I * J^-1 = I * JJ * b^-1
+			IJJ_ZB := IntersectionZBasis(ridls[i], JJ);
+			ridls_colonZBs[<j,i>] := [H| x*binv : x in IJJ_ZB ] where binv is b^-1;
+		    else
+			icolonj := ColonInternal(PseudoMatrix(ridls[i],H), PseudoMatrix(ridls[j],H), H, true // left multipliers
+						 : Hermite:=false); 
+			ridls_colonZBs[<j,i>] := ZBasis(icolonj, H);
+		    end if;
+		end if;
+	    end for; // i in inds
+	    
+            vprintf ModFrmHil, 2: "Doing row #%o:  ", j;
+            time_row := Cputime();
+	    
+            if debug then
+		for i in inds do
+		    g := ridls_colon_norms_gens[j][i]*gP;
+		    assert g*OF eq Norm(ridls[i])/Norm(ridls[j])*P;
+		end for;
+            end if;
+
+	    // hack begins
+	    if hack then
+		ts_raw_j := AssociativeArray(pos_units);
+		for u in pos_units do
+		    ts_raw_j[u] := [[] : i in [1..h]];
+		end for;
+		for i in inds do
+		    g := ridls_colon_norms_gens[j][i] * gP;
+		    for u in pos_units do
+			bool, elts := has_element_of_norm(ridls_colonZBs[<j,i>], u*g : all);
+			if bool then
+			    Append(~ts_raw_j[u][i], elts); 
+			end if;
+		    end for;
+		end for;
+		for u in pos_units do
+		    Append(~ts_raw[u], ts_raw_j[u]);
+		    assert #ts_raw[u] eq j;
+		end for;
+	    else
+		ts_raw_j := [[] : i in [1..h]];
+		for i in inds do
+		    g := ridls_colon_norms_gens[j][i] * gP;
+		    for u in pos_units_mod_norms[i] do
+			bool, elts := has_element_of_norm(ridls_colonZBs[<j,i>], u*g : all);
+			if bool then 
+			    Append(~ts_raw_j[i], elts); 
+			end if;
+		    end for;
+		end for;
+		Append(~ts_raw, ts_raw_j); assert #ts_raw eq j;
+	    end if;
+	    // hack ends
        
-       ridls_colonZBs := OH`RightIdealClasses[record_idx]`rids_colonZBs; 
+            vprintf ModFrmHil, 2: "Time for row #%o: %o\n", j, Cputime(time_row);
 
-       for j := 1 to h do 
-           if j notin rows then
-	       // hack begins
-	       if hack then
-		   for v in vals do
-		       Append(~ts_raw[v], [[] : i in [1..h]]);
-		   end for;
-	       else
-		   Append(~ts_raw, [[] : i in [1..h]]);
-	       end if;
-	       // hack ends
-               continue;
-           end if;
+	end for; // j
+	
+	OH`RightIdealClasses[record_idx]`rids_colonZBs := ridls_colonZBs; // update cache (note: this might use a lot of memory!)
 
-           inds := inds_for_j(j);
+	// We've computed ts_raw[j][i] for all (relevant) j and i
+	// Now choose one from each orbit under left action of units
 
-           // Make sure we know Z-bases for (I:J)'s
-           for i in inds do 
-               // Get a totally positive generator g of the ideal (there exists one, for i in inds)
-               if not IsDefined(ridls_colonZBs, <j,i>) then
-		   vprintf ModFrmHil,3: "Z-basis for I:J (%ousing the J' trick) ... ", 
-                                        use_Jprime select "" else "not "; 
-		   vtime ModFrmHil,3:
-    if use_Jprime then 
-        JJ, b := Explode(JJs[j]);  // [I : J] = I * J^-1 = I * JJ * b^-1
-        IJJ_ZB := IntersectionZBasis(ridls[i], JJ);
-              ridls_colonZBs[<j,i>] := [H| x*binv : x in IJJ_ZB ] where binv is b^-1;
-    else
-        icolonj := ColonInternal(PseudoMatrix(ridls[i],H), PseudoMatrix(ridls[j],H), H, true // left multipliers
-                                 : Hermite:=false); 
-        ridls_colonZBs[<j,i>] := ZBasis(icolonj, H);
-    end if;
-end if;
-end for; // i in inds
+	// Choose well-defined reps mod +-1 
+	function normalize(S)
+            return {-s lt s select -s else s : s in S};
+	end function;
 
-        vprintf ModFrmHil, 2: "Doing row #%o:  ", j;
-        time_row := Cputime();
+	inds := [(j in rows) select inds_for_j(j) else [] : j in [1..h]];
+	allinds := Seqset(&cat inds);
+	noums := AssociativeArray(allinds);
+	for i in allinds do 
+            noumsi := ridls[i]`LeftOrder`norm_one_units_mod_scalars;
+            assert Universe(noumsi) eq H;
+            Exclude(~noumsi, H!1);
+            Exclude(~noumsi, H!-1);
+            noums[i] := noumsi;
+	end for;
 
-        if debug then
-          for i in inds do
-            g := ridls_colon_norms_gens[j][i]*gP;
-            assert g*OF eq Norm(ridls[i])/Norm(ridls[j])*P;
-          end for;
-        end if;
+	vprintf ModFrmHil, 2: "Choosing representatives modulo left multiplication by units: ";
+	// vtime ModFrmHil, 2:
 
 	// hack begins
 	if hack then
-	    vals := ValuesOnGens(eps);
-	    ts_raw_j := [AssociativeArray(vals) : i in [1..h]];
-	    for i in inds do
-		g := ridls_colon_norms_gens[j][i] * gP;
-		for u in pos_units_mod_norms[i] do
-		    bool, elts := has_element_of_norm(ridls_colonZBs[<j,i>], u*g : all);
-		    if bool then
-			ts_raw_j[i][u] := elts; 
-		    end if;
-		end for;
-            end for;
+	    for j in rows do
+		for i in inds[j] do
+		    for u in pos_units do
+			ts := [H| ];
+			for ie := 1 to #ts_raw[u][j][i] do 
+			    elts := ts_raw[u][j][i][ie]; 
+			    us := noums[i];
+			    // Discard repeats modulo left mult by the norm-one-units us;
+			    // here elts contains full orbits mod +-1,
+			    // and us are the units mod +-1
+			    length := 1+#us;
+			    if length eq 1 then
+				ts cat:= elts;
+			    elif #elts eq length then
+				Append(~ts, elts[1]);
+			    else
+				elts := normalize(elts);
+				while true do
+				    // assert #elts ge length;
+				    // assert #elts mod length eq 0;
+				    e1 := Rep(elts);
+				    Append(~ts, e1);
+				    if #elts eq length then
+					// the current elts form precisely one orbit
+					break;
+				    else
+					Exclude(~elts, e1);
+					orbit := normalize({H| u*e1 : u in us});
+					// assert orbit subset elts;
+					elts diff:= orbit;
+				    end if;
+				end while;
+			    end if;
+			end for; // ie
+
+			if debug and small_prime then // this checks the two methods against eachother
+			    bool, tpsji := IsDefined(tps, <j,i>); assert bool;
+			    assert #ts eq #tpsji;
+			    for t in ts do 
+				assert #[tt : tt in tpsji | tt/t in  LeftOrder(ridls[i])] eq 1; 
+			    end for;
+			    for t in tpsji do 
+				assert #[tt : tt in ts | tt/t in  LeftOrder(ridls[i])] eq 1; 
+			    end for;
+			end if;
+			
+			tps[u][<j,i>] := ts;
+		    end for; // u
+		end for; // i
+	    end for; // j
 	else
-            ts_raw_j := [[] : i in [1..h]];
-            for i in inds do
-		g := ridls_colon_norms_gens[j][i] * gP;
-		for u in pos_units_mod_norms[i] do
-		    bool, elts := has_element_of_norm(ridls_colonZBs[<j,i>], u*g : all);
-		    if bool then 
-			Append(~ts_raw_j[i], elts); 
+	    for j in rows do
+		for i in inds[j] do
+		    ts := [H| ];
+		    for ie := 1 to #ts_raw[j][i] do 
+			elts := ts_raw[j][i][ie]; 
+			us := noums[i];
+			// Discard repeats modulo left mult by the norm-one-units us;
+			// here elts contains full orbits mod +-1,
+			// and us are the units mod +-1
+			length := 1+#us;
+			if length eq 1 then
+			    ts cat:= elts;
+			elif #elts eq length then
+			    Append(~ts, elts[1]);
+			else
+			    elts := normalize(elts);
+			    while true do
+				// assert #elts ge length;
+				// assert #elts mod length eq 0;
+				e1 := Rep(elts);
+				Append(~ts, e1);
+				if #elts eq length then
+				    // the current elts form precisely one orbit
+				    break;
+				else
+				    Exclude(~elts, e1);
+				    orbit := normalize({H| u*e1 : u in us});
+				    // assert orbit subset elts;
+				    elts diff:= orbit;
+				end if;
+			    end while;
+			end if;
+		    end for; // ie
+
+		    if debug and small_prime then // this checks the two methods against eachother
+			bool, tpsji := IsDefined(tps, <j,i>); assert bool;
+			assert #ts eq #tpsji;
+			for t in ts do 
+			    assert #[tt : tt in tpsji | tt/t in  LeftOrder(ridls[i])] eq 1; 
+			end for;
+			for t in tpsji do 
+			    assert #[tt : tt in ts | tt/t in  LeftOrder(ridls[i])] eq 1; 
+			end for;
 		    end if;
-		end for;
-            end for;
+
+		    tps[<j,i>] := ts;
+		end for; // i
+	    end for; // j
 	end if;
 	// hack ends
-        Append(~ts_raw, ts_raw_j); assert #ts_raw eq j;
-       
-        vprintf ModFrmHil, 2: "Time for row #%o: %o\n", j, Cputime(time_row);
-
-      end for; // j
-
-      OH`RightIdealClasses[record_idx]`rids_colonZBs := ridls_colonZBs; // update cache (note: this might use a lot of memory!)
-
-      // We've computed ts_raw[j][i] for all (relevant) j and i
-      // Now choose one from each orbit under left action of units
-
-      // Choose well-defined reps mod +-1 
-      function normalize(S)
-        return {-s lt s select -s else s : s in S};
-      end function;
-
-      inds := [(j in rows) select inds_for_j(j) else [] : j in [1..h]];
-      allinds := Seqset(&cat inds);
-      noums := AssociativeArray(allinds);
-      for i in allinds do 
-        noumsi := ridls[i]`LeftOrder`norm_one_units_mod_scalars;
-        assert Universe(noumsi) eq H;
-        Exclude(~noumsi, H!1);
-        Exclude(~noumsi, H!-1);
-        noums[i] := noumsi;
-      end for;
-
-      vprintf ModFrmHil, 2: "Choosing representatives modulo left multiplication by units: ";
-      vtime ModFrmHil, 2:
-
-      for j in rows do
-          for i in inds[j] do
-	      
-          ts := [H| ];
-          for ie := 1 to #ts_raw[j][i] do 
-            elts := ts_raw[j][i][ie]; 
-            us := noums[i];
-            // Discard repeats modulo left mult by the norm-one-units us;
-            // here elts contains full orbits mod +-1,
-            // and us are the units mod +-1
-            length := 1+#us;
-            if length eq 1 then
-              ts cat:= elts;
-            elif #elts eq length then
-              Append(~ts, elts[1]);
-            else
-              elts := normalize(elts);
-              while true do
-                // assert #elts ge length;
-                // assert #elts mod length eq 0;
-                e1 := Rep(elts);
-                Append(~ts, e1);
-                if #elts eq length then
-                  // the current elts form precisely one orbit
-                  break;
-                else
-                  Exclude(~elts, e1);
-                  orbit := normalize({H| u*e1 : u in us});
-                  // assert orbit subset elts;
-                  elts diff:= orbit;
-                end if;
-              end while;
-            end if;
-          end for; // ie
-
-          if debug and small_prime then // this checks the two methods against eachother
-            bool, tpsji := IsDefined(tps, <j,i>); assert bool;
-            assert #ts eq #tpsji;
-            for t in ts do 
-              assert #[tt : tt in tpsji | tt/t in  LeftOrder(ridls[i])] eq 1; 
-            end for;
-            for t in tpsji do 
-              assert #[tt : tt in ts | tt/t in  LeftOrder(ridls[i])] eq 1; 
-            end for;
-          end if;
-
-          tps[<j,i>] := ts;
-        end for; // i
-      end for; // j
-
+	
     end if; // small_prime
     IndentPop();
 
     // Sanity checks
     // (we really need the first check, it actually once failed for a huge prime p)
-    keys := Keys(tps);
-    for j in rows do
-      assert &+ [#tps[<j,i>] : i in [1..h] | <j,i> in keys] eq num; 
-    end for; 
+    // hack begins
+    if hack then
+	for j in rows do
+	    assert &+ [&+ [#tps[u][<j,i>] : i in [1..h] | <j,i> in Keys(tps[u])] : u in pos_units] eq num*#pos_units; 
+	end for; 
+    else
+	keys := Keys(tps);
+	for j in rows do
+	    assert &+ [#tps[<j,i>] : i in [1..h] | <j,i> in keys] eq num; 
+	end for; 
+    end if;
+    // hack ends
     if debug then
       if rows eq [1..h] then
         tps0 := OH`RightIdealClasses[record_idx]`tps;
@@ -591,6 +648,109 @@ end for; // i in inds
 
     // (previously) loop over several Ps ended here
     
-  IndentPop();
-  vprint ModFrmHil: "Precomputation time:", Cputime(time0);
+    IndentPop();
+    vprint ModFrmHil: "Precomputation time:", Cputime(time0);
 end procedure;
+
+// copy pasted from precompute.m
+
+function get_tps_for_rids(OA, rids, p : rows:=0, hack := true)
+  h := #rids;
+  if rows cmpeq 0 then
+    rows := [1..h];
+  else
+    assert Type(rows) eq SeqEnum and rows subset [1..h];
+  end if;
+  new_rows := rows;
+
+  // Check if tps are cached for these rids
+  // (Locating the rids_record this way is a silly vestigial thing)
+  idx := 1; 
+  while idx le #OA`RightIdealClasses do 
+    rec := OA`RightIdealClasses[idx];
+    if IsIdentical(rids, rec`rids) then
+      if not assigned rec`tps then
+        break;
+      end if;
+      bool, tps_p := IsDefined(rec`tps, p);
+      if bool then 
+        bool, old_rows := IsDefined(rec`tps_rows, p); assert bool;
+        if rows subset old_rows then
+          return tps_p;
+        else
+          new_rows := [i : i in rows | i notin old_rows];
+        end if;
+      end if;
+      break;
+    end if;
+    idx +:= 1;
+  end while;
+  error if idx gt #OA`RightIdealClasses, "There should be a record for these rids!";
+
+  if assigned rec`rids1 then
+    // rids were converted from rids1, by left-multiplying by elts
+    // (rids1 and rids_conversion are assigned together by convert_rids)
+    rids1 := rec`rids1;
+    elts := rec`rids_conversion;
+    if debug then
+      assert forall{i: i in [1..#rids] | rids[i] eq elts[i]*rids1[i]};
+    end if;
+    // Policy: always compute and cache tps on rids1 
+    // because rids1 are likely to be used for most levels
+    // (and usually the first record in OA`RightIdealClasses).
+    // Don't cache the converted tps, they take far too much memory!
+    tps1 := get_tps_for_rids(OA, rids1, p : rows:=rows, hack := hack);
+    vprintf ModFrmHil, 2: "Converting tp's for prime of norm %o: ", Norm(p);
+    vtime ModFrmHil, 2:
+    tps := convert_tps(tps1, elts, rows);
+    return tps;
+  end if;
+
+  // prepare record to be used in precompute_tps
+  if not assigned rec`rids_colonZBs then
+    rec`rids_colonZBs := AssociativeArray(CartesianProduct([1..h],[1..h]));
+  end if;
+  if not assigned rec`tps then 
+    rec`tps := AssociativeArray(PowerIdeal(Order(p)));
+    rec`tps_rows := AssociativeArray(PowerIdeal(Order(p)));
+  end if;
+  OA`RightIdealClasses[idx] := rec;
+
+  precompute_tps(OA, p, rids, idx, new_rows : hack := hack); 
+  // This caches them in OA`RightIdealClasses[idx]`tps[p], 
+  //    and also updates OA`RightIdealClasses[idx]`tps_rows[p]
+
+  return OA`RightIdealClasses[idx]`tps[p];
+end function;
+
+function get_tps(M, p : rows:=0, hack := true)
+  return get_tps_for_rids(QuaternionOrder(M), get_rids(M), p : rows:=rows, hack := hack);
+end function;
+
+// At the moment we do not use this code
+
+// Given a sequence of units in OF that form a subgroup U of OF*/(OF*)^2 
+// containing N meet Kernel(eps), where N is the group of norms of OH*, this returns units in OF 
+// whose images in OF*/(OF*)^2 form a transversal of U/(N meet Ker(eps))
+
+/*
+function units_mod_norms(units, OH : hack := true, eps := 1)
+  OF := BaseRing(OH);
+  UF, unitmap := UnitGroup(OF);
+  UFmod2, mod2 := quo< UF | 2*UF >;
+  norms := {Norm(u) : u in Units(OH)};
+  // hack begins
+  if hack then
+      if IsOne(eps) then
+	  eps := TrivialCharacter(NumberField(OF));
+      end if;
+      N := sub< UFmod2 | [u @@unitmap @mod2 : u in norms | eps(u) eq 1] >;
+  else
+      N := sub< UFmod2 | [u @@unitmap @mod2 : u in norms] >;
+  end if;
+  // hack ends
+  U := sub< UFmod2 | [u @@unitmap @mod2 : u in units] >;
+  assert N subset U;
+  return [t @@mod2 @unitmap : t in Transversal(U,N)];
+end function;
+*/

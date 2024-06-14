@@ -1,8 +1,10 @@
 {
+  definite.m
   diamond.m
   finitefield.m
   hackobj.m
   hecke_field.m
+  precompute.m
 
   # we replace: DegeneracyMapDomain and WeightRepresentation
   copypaste/definite.m
