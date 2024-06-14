@@ -30,6 +30,11 @@ intrinsic Evaluate(omega::GrpCharUnitTotElt, x::RngElt) -> RngElt
   end if;
 end intrinsic;
 
+intrinsic '@'(omega::GrpCharUnitTotElt, x::RngElt) -> RngElt
+{Evaluate the unit character omega on x, a number field element.}
+  return Evaluate(omega, x);
+end intrinsic;
+
 intrinsic 'eq'(omega::GrpCharUnitTotElt, omegap::GrpCharUnitTotElt) -> BoolElt
   {Equality test.}
 

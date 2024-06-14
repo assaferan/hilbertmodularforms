@@ -15,7 +15,7 @@ freeze;
 ***********************************************************************/
 
 // hack begins
-// We replace HMF0 with out own
+// We replace HMF0 with our own
 import "../hackobj.m" : HMF0;
 
 import "hecke.m" :
@@ -189,6 +189,8 @@ function ideal_print_on_one_line(I, level)
   return 0;
 end function;
 
+// hack begins - commenting out as we use a modified intrinsic
+/*
 intrinsic Print(x::ModFrmHil, level::MonStgElt)
 {}
   F := BaseField(x);
@@ -236,6 +238,8 @@ intrinsic Print(x::ModFrmHil, level::MonStgElt)
     _ := ideal_print_on_one_line( Discriminant(Algebra(O)), level);
   end if;
 end intrinsic;
+*/
+// hack ends
 
 // TO DO: Provide Print too ???
 
