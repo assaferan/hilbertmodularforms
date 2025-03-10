@@ -1,7 +1,7 @@
 
 //////////////////// Main function: Trace Form /////////////////////////
 
-intrinsic TraceForm(Mk::ModFrmHilD) -> ModFrmHilDElt
+intrinsic TraceForm(Mk::ModFrmHilD : UseCache := false, Cache := AssociativeArray()) -> ModFrmHilDElt
   {Creates the trace form in the space Mk}
   M := Parent(Mk);
   Q := Rationals();
@@ -9,14 +9,14 @@ intrinsic TraceForm(Mk::ModFrmHilD) -> ModFrmHilDElt
   for bb in NarrowClassGroupReps(M) do
     coeffs[bb] := AssociativeArray();
     for nu->nn in RepToIdeal(M)[bb] do
-      coeffs[bb][nu] := Q!Trace(Mk, nn : precomp := true);
+      coeffs[bb][nu] := Q!Trace(Mk, nn : precomp := true, UseCache := UseCache, Cache := Cache);
     end for;
   end for;
   return HMF(Mk, coeffs);
 end intrinsic;
 
 
-intrinsic TraceForm(Mk::ModFrmHilD, mm::RngOrdIdl) -> ModFrmHilDElt
+intrinsic TraceForm(Mk::ModFrmHilD, mm::RngOrdIdl : UseCache := false, Cache := AssociativeArray()) -> ModFrmHilDElt
   {Creates the trace form in the space Mk}
   M := Parent(Mk);
   ZF := Integers(M);
@@ -25,7 +25,7 @@ intrinsic TraceForm(Mk::ModFrmHilD, mm::RngOrdIdl) -> ModFrmHilDElt
   for bb in NarrowClassGroupReps(M) do
     coeffs[bb] := AssociativeArray();
     for nu->nn in RepToIdeal(M)[bb] do
-      coeffs[bb][nu] := TraceRecurse(Mk, nn, mm);
+      coeffs[bb][nu] := TraceRecurse(Mk, nn, mm : UseCache := UseCache, Cache := Cache);
     end for;
   end for;
   return HMF(Mk, coeffs);

@@ -71,7 +71,7 @@ This proceedure is done in the following steps:
 */
 
 // FIXME: HMFTracePrecomputation - Pass tracebasis to IdealCMextensions instead of computing each time
-intrinsic HMFTracePrecomputation(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : SaveAndLoad:=true)
+intrinsic HMFTracePrecomputation(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : SaveAndLoad:=true, UseCache := false, Cache := AssociativeArray())
   {Precomputes class number and unit indices for a list of ideals L}
 
   // Do nothing if L is empty
@@ -109,7 +109,7 @@ intrinsic HMFTracePrecomputation(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : Save
   ///////////////////////////////////
 
   // This needs to be updated for general fields
-  function DiscriminantHash(D)
+  function DiscriminantHash(D : UseCache := false, Cache := AssociativeArray())
     // Phase 1
     mm := D * ZF;
     aa := &*( [1*ZF] cat [ pp[1] ^ (pp[2] div 2) : pp in Factorization(mm)] ); // Note pp[2] div 2 = Floor(pp[2]/2)
@@ -178,7 +178,7 @@ intrinsic HMFTracePrecomputation(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : Save
   Hash := AssociativeArray();
   RDiscs := {};
   for D in Discs do
-    d, c := DiscriminantHash(D);
+    d, c := DiscriminantHash(D : UseCache := UseCache, Cache := Cache);
     Include(~RDiscs, d);
     Hash[D] := [d, c];
   end for;
@@ -192,7 +192,7 @@ intrinsic HMFTracePrecomputation(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : Save
 
   hplus := NarrowClassNumber(M); // Narrow class number
   for d in NK do
-    h, w, DD := ClassNumberandUnitIndex(ZF, d, hplus); // Class group of K and Hasse Unit index
+    h, w, DD := ClassNumberandUnitIndex(ZF, d, hplus : UseCache := UseCache, Cache := Cache); // Class group of K and Hasse Unit index
     // K = F(sqrt(-d))
     // h = h(K)
     // DD = disc(K)
@@ -235,16 +235,16 @@ intrinsic HMFTracePrecomputation(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : Save
 end intrinsic;
 
 
-intrinsic PrecomputeTraceForm(M::ModFrmHilDGRng)
+intrinsic PrecomputeTraceForm(M::ModFrmHilDGRng : UseCache := false, Cache := AssociativeArray())
   { Precomputes values to generate traceforms tr }
-  HMFTracePrecomputation(M, Ideals(M));
+  HMFTracePrecomputation(M, Ideals(M) : UseCache := UseCache, Cache := Cache);
 end intrinsic;
 
 
-intrinsic PrecomputeTraceForms(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl])
+intrinsic PrecomputeTraceForms(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : UseCache := false, Cache := AssociativeArray())
   {Given a list of ideals L = [aa,bb, ...], precomputes values to generate traceforms t_aa, t_bb, ... }
   A := SetToSequence({ ii * aa : ii in Ideals(M), aa in L }); // Set of ideals
-  HMFTracePrecomputation(M,A);
+  HMFTracePrecomputation(M,A : UseCache:=UseCache, Cache:=Cache);
 end intrinsic;
 
 

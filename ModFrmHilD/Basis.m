@@ -45,7 +45,9 @@ intrinsic CuspFormBasis(
   Symmetric:=false,
   GaloisDescent:=true,
   ViaTraceForm:=false,
-  SaveAndLoad:=false
+  SaveAndLoad:=false,
+  UseCache := false,
+  Cache := AssociativeArray()
   ) -> SeqEnum[ModFrmHilDElt]
   {returns a basis for cuspspace of M of weight k}
 
@@ -67,9 +69,10 @@ intrinsic CuspFormBasis(
   else
     ViaTraceForm and:= IsParallel(k) and GaloisDescent and (k[1] mod 2) eq 0;
     if ViaTraceForm then
-      Mk`CuspFormBasis := CuspFormBasisViaTrace(Mk : IdealClassesSupport:=IdealClassesSupport);
+      Mk`CuspFormBasis := CuspFormBasisViaTrace(Mk : IdealClassesSupport:=IdealClassesSupport, UseCache := UseCache, Cache := Cache);
     else
-      Mk`CuspFormBasis := NewCuspFormBasis(Mk : GaloisDescent:=GaloisDescent, SaveAndLoad:=SaveAndLoad) cat OldCuspFormBasis(Mk : GaloisDescent:=GaloisDescent, SaveAndLoad:=SaveAndLoad);
+      Mk`CuspFormBasis := NewCuspFormBasis(Mk : GaloisDescent:=GaloisDescent, SaveAndLoad:=SaveAndLoad, UseCache := UseCache, Cache := Cache) cat 
+                          OldCuspFormBasis(Mk : GaloisDescent:=GaloisDescent, SaveAndLoad:=SaveAndLoad, UseCache := UseCache, Cache := Cache);
     end if;
     // The contents of Mk`CuspFormBasis should be a basis for the space of cuspforms
     require CuspDimension(Mk) eq #Mk`CuspFormBasis : Sprintf("CuspDimension(Mk) = %o != %o = #Mk`CuspFormBasis", CuspDimension(Mk), #Mk`CuspFormBasis);
@@ -83,7 +86,9 @@ intrinsic NewCuspFormBasis(
   IdealClassesSupport := false,
   Symmetric := false,
   GaloisDescent := true,
-  SaveAndLoad := false
+  SaveAndLoad := false,
+  UseCache := false,
+  Cache := AssociativeArray()
   ) -> SeqEnum[ModFrmHilDElt]
   {
     input:
@@ -103,7 +108,7 @@ intrinsic NewCuspFormBasis(
   return SubBasis(Mk`NewCuspFormBasis, IdealClassesSupport, Symmetric);
 end intrinsic;
 
-intrinsic CuspFormBasisViaTrace(Mk::ModFrmHilD : IdealClassesSupport:=false, fail_counter := 10) -> SeqEnum[ModFrmHilDElt]
+intrinsic CuspFormBasisViaTrace(Mk::ModFrmHilD : IdealClassesSupport:=false, fail_counter := 10, UseCache := false, Cache := AssociativeArray()) -> SeqEnum[ModFrmHilDElt]
   {Returns a cuspform basis for the space Mk. Optional parameters: IdealClassesSupport - Compute a basis of forms on just a single component}
   /* Notes: Ben - We select the first n ideals (n = dimension of cusp space) ordered by norm for the traceforms. I tried ordering by trace as well,
   but did not see a noticeable difference in the running times. Is there a good way to pick ideals for the traceforms? */
@@ -153,7 +158,8 @@ intrinsic CuspFormBasisViaTrace(Mk::ModFrmHilD : IdealClassesSupport:=false, fai
   for dd in Old do
     chidd := Restrict(chi, dd, ii);
     Mkdd  := HMFSpace(M, dd, k, chidd);
-    B cat:= &cat[ Inclusion(f,Mk) : f in CuspFormBasis(Mkdd) ];
+    B cat:= &cat[ Inclusion(f,Mk) : f in CuspFormBasisViaTrace(Mkdd : IdealClassesSupport:=IdealClassesSupport, fail_counter:=fail_counter, 
+                                                                      UseCache := UseCache, Cache := Cache)];
     // Remove linear dependent forms 
     B := (#B ne 0) select Basis(B) else B;
   end for;
@@ -174,6 +180,7 @@ intrinsic CuspFormBasisViaTrace(Mk::ModFrmHilD : IdealClassesSupport:=false, fai
     // Compute new ideal
     aa := Ideals[t];
     vprintf HilbertModularForms: "Computing %o new traceforms.\n Fail counter: %o\n Ideals: %o\n", d, fails, [ IdealOneLine(aa) : aa in aas];
+    
     /*
     vprintf HilbertModularForms: "PrecomputeTraceForms(M, aas)...";
     vtime HilbertModularForms:
@@ -181,7 +188,7 @@ intrinsic CuspFormBasisViaTrace(Mk::ModFrmHilD : IdealClassesSupport:=false, fai
     */
 
     // Check for linear dependence
-    B cat:= [TraceForm(Mk,aa) : aa in aas];
+    B cat:= [TraceForm(Mk,aa : UseCache := UseCache, Cache := Cache) : aa in aas];
     B := (#B ne 0) select Basis(B) else B;
     if d eq (dim - #B) then
       fails +:=1;
@@ -205,7 +212,9 @@ intrinsic OldCuspFormBasis(
   IdealClassesSupport := false,
   Symmetric := false,
   GaloisDescent := true,
-  SaveAndLoad := false
+  SaveAndLoad := false,
+  UseCache := false,
+  Cache := AssociativeArray()
   ) -> SeqEnum[ModFrmHilDElt]
   {
     input:
@@ -226,7 +235,9 @@ intrinsic OldCuspFormBasis(
     divisors := Exclude(Divisors(N), N);
     for D in divisors do
       Mk_D := HMFSpace(M, D, k);
-      Mk`OldCuspFormBasis cat:= &cat[Inclusion(f, Mk) : f in NewCuspFormBasis(Mk_D : IdealClassesSupport:=IdealClassesSupport, Symmetric:=Symmetric, GaloisDescent:=GaloisDescent, SaveAndLoad:=SaveAndLoad)];
+      Mk`OldCuspFormBasis cat:= &cat[Inclusion(f, Mk) : f in NewCuspFormBasis(Mk_D : IdealClassesSupport:=IdealClassesSupport, Symmetric:=Symmetric, 
+                                                                                     GaloisDescent:=GaloisDescent, SaveAndLoad:=SaveAndLoad, 
+                                                                                     UseCache := UseCache, Cache := Cache)];
     end for;
   end if;
   return SubBasis(Mk`OldCuspFormBasis, IdealClassesSupport, Symmetric);
@@ -363,13 +374,15 @@ intrinsic Basis(
   :
   IdealClassesSupport:=false,
   Symmetric:=false,
-  ViaTraceForm:=false
+  ViaTraceForm:=false,
+  UseCache := false,
+  Cache := AssociativeArray()
   ) -> SeqEnum[ModFrmHilDElt]
   { returns a Basis for the space }
   if not assigned Mk`Basis then
     vprintf HilbertModularForms: "Computing basis for space of parallel weight %o with precision %o\n", Weight(Mk)[1], Precision(Parent(Mk));
     // Cuspforms
-    CB := CuspFormBasis(Mk : ViaTraceForm:=ViaTraceForm);
+    CB := CuspFormBasis(Mk : ViaTraceForm:=ViaTraceForm, UseCache := UseCache, Cache := Cache);
     //Eisenstein Series
     EB := EisensteinBasis(Mk);
     Mk`Basis := EB cat CB;

@@ -364,7 +364,9 @@ intrinsic ExtendBasis(forms::SeqEnum[ModFrmHilDElt], Mk :
                       KnownMkDimension    := false,
                       IdealClassesSupport := false,
                       TraceFormIdeals := [],
-                      Symmetric     := false) -> SeqEnum
+                      Symmetric     := false,
+                      UseCache := false,
+                      Cache := AssociativeArray()) -> SeqEnum
 {Given a sequence Q of r linearly independent elements of a space M and a subspace V of M
 containing the elements of Q, extend the elements of Q to a basis for U; the basis is
 returned in the form of a sequence T such that T[i] = Q[i] for i in [ 1 .. r ].
@@ -378,7 +380,7 @@ It is assumed that `forms` are linearly independent.}
         // First try our luck with just Eisenstein series. If that fails, use the fallback.
 
         eisensteinbasis := EisensteinBasis(Mk : IdealClassesSupport:=IdealClassesSupport, Symmetric:=Symmetric);
-        traceforms := [ TraceForm(Mk,aa) : aa in TraceFormIdeals ];
+        traceforms := [ TraceForm(Mk,aa : UseCache := UseCache, Cache := Cache) : aa in TraceFormIdeals ];
         moreforms := Basis(forms cat eisensteinbasis cat traceforms );
         coeffs_matrix := CoefficientsMatrix(moreforms : IdealClasses:=IdealClassesSupport);
 

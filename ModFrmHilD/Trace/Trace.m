@@ -28,7 +28,7 @@ class numbers #CL(K) and Hasse unit index [ZK^* : ZF^*] for lots of CM-extension
 
 declare verbose HMFTrace, 3;
 
-intrinsic Trace(Mk::ModFrmHilD, mm::RngOrdIdl : precomp := false) -> RngElt
+intrinsic Trace(Mk::ModFrmHilD, mm::RngOrdIdl : precomp := false, UseCache := false, Cache := AssociativeArray()) -> RngElt
   {Finds the trace of Hecke Operator T(mm) on Mk}
 
   // Initialize
@@ -53,7 +53,7 @@ intrinsic Trace(Mk::ModFrmHilD, mm::RngOrdIdl : precomp := false) -> RngElt
   require #Set(k) eq 1: "Not implemented for nonparallel weights";
 
   // Compute Trace[ T(mm) * P(aa) ] over representatives aa for the class group
-  Tr := (1/#C) * &+[ chi( H[aa] ) * TraceProduct(Mk, mm, aa : precomp := precomp ) : aa in C ];
+  Tr := (1/#C) * &+[ chi( H[aa] ) * TraceProduct(Mk, mm, aa : precomp := precomp, UseCache := UseCache, Cache := Cache ) : aa in C ];
 
   // Correction factor for the Eisenstein series in weight (2,...,2)
   Tr +:= CorrectionFactor(Mk, mm);
@@ -65,7 +65,7 @@ end intrinsic;
 
 ///////////////////////////////// ModFrmHilD: TraceProduct ////////////////////////////////////////////
 
-intrinsic TraceProduct(Mk::ModFrmHilD, mm::RngOrdIdl, aa::RngOrdIdl : precomp := false) -> RngElt
+intrinsic TraceProduct(Mk::ModFrmHilD, mm::RngOrdIdl, aa::RngOrdIdl : precomp := false, UseCache := false, Cache := AssociativeArray()) -> RngElt
   {Computes Trace[ T(mm) * P(aa) ] where T(mm) is the mth hecke operator and P(aa) is the diamond operator}
 
   // Preliminaries
@@ -105,7 +105,7 @@ intrinsic TraceProduct(Mk::ModFrmHilD, mm::RngOrdIdl, aa::RngOrdIdl : precomp :=
   end function;
 
   // Index for summation
-  Indexforsum := precomp select TracePrecomputationByIdeal(M,mm)[aa] else IndexOfSummation(M, mm, aa);
+  Indexforsum := precomp select TracePrecomputationByIdeal(M,mm : UseCache := UseCache, Cache := Cache)[aa] else IndexOfSummation(M, mm, aa);
 
   Sumterm := ZK ! 0;
   for data in Indexforsum do
@@ -770,8 +770,33 @@ intrinsic OptimalEmbeddingsEven(e::RngIntElt, f::RngIntElt, g::RngIntElt, A::Rng
   return N;
 end intrinsic;
 
+function silly_list_comprehension1(S, F_to_Kabs)
+  return [F_to_Kabs(g) : g in S];
+end function;
 
+function silly_list_comprehension2(S, K)
+  return [Norm(K!x) : x in S];
+end function;
 
+function fast_disc(K, Kabs, ZF)
+  ZKabs := Integers(Kabs);
+  // Constructing the order takes too long
+  // ZK := Order([K!x : x in Basis(ZKabs)]);
+  // DD := Discriminant(ZK);
+
+  // This is also very slow
+  // diff_ZF := ZKabs!!Different(ZF);
+  // _, K_to_Kabs := IsSubfield(K, Kabs);
+  K_to_Kabs := hom<K -> Kabs | Kabs!(K.1) : Check := false >;
+  gens := Generators(Different(ZF)^(-1));
+  F := NumberField(ZF);
+  _, F_to_K := IsSubfield(F,K);
+  F_to_Kabs := F_to_K*K_to_Kabs;
+  inv_diff_ZF := ideal<ZKabs | silly_list_comprehension1(gens, F_to_Kabs) >;
+  diff_KF := inv_diff_ZF * Different(ZKabs);
+  DD := ideal<ZF| silly_list_comprehension2(Basis(diff_KF),K)>;
+  return DD;
+end function;
 
 ///////////////////////////////////////////////////
 //                                               //
@@ -779,7 +804,7 @@ end intrinsic;
 //                                               //
 ///////////////////////////////////////////////////
 
-intrinsic ClassNumberandUnitIndex(ZF::RngOrd, d::RngOrdElt, hplus::RngIntElt) -> Any
+intrinsic ClassNumberandUnitIndex(ZF::RngOrd, d::RngOrdElt, hplus::RngIntElt : Proof := "GRH", UseCache := false, Cache := AssociativeArray()) -> Any
   {Returns the class number and the unit index 2[Z_K^* : Z_F^*] = #mu_K [Z_K^* : mu_K Z_F^*]}
   /* This takes as input
         - K/F = a number field defined as a degree 2 extension of a totally real field F
@@ -833,10 +858,26 @@ intrinsic ClassNumberandUnitIndex(ZF::RngOrd, d::RngOrdElt, hplus::RngIntElt) ->
   end if; //////////
 
   // Class group
-  h := ClassNumber(Kabs);
+  // !!! Changing only locally to use cache - this also needs polredabs
+  if UseCache then
+    pol := Coefficients(DefiningPolynomial(Polredabs(Kabs)));
+    if IsDefined(Cache, pol) then
+      h := Cache[pol];
+    else
+      h := ClassNumber(Kabs : Proof := Proof);
+    end if;
+  else
+    h := ClassNumber(Kabs : Proof := Proof);
+  end if;
 
   // Discriminant
-  DD := Discriminant(Integers(K)); // Discriminant
+
+  // Computing the integers of K takes a long time here
+  // Trying to reuse Integers(Kabs) already computed above
+  // fast_disc is not any faster
+
+  // DD := Discriminant(Integers(K)); // Discriminant
+  DD := fast_disc(K, Kabs, ZF);
 
   // return
   return h, unitindex, DD;
@@ -893,7 +934,7 @@ end intrinsic;
 // trace recursion function
 // ****  FIXME: This function has not been optimized *********
 // FIXME - In trace function change the Trace 0 to output 0 in the coefficient ring of Hecke character.
-intrinsic TraceRecurse(Mk::ModFrmHilD, mm::RngOrdIdl, nn::RngOrdIdl) -> Any
+intrinsic TraceRecurse(Mk::ModFrmHilD, mm::RngOrdIdl, nn::RngOrdIdl : UseCache := false, Cache := AssociativeArray()) -> Any
   {Computes the trace of T(pp)^r * T(pp)^s on the space Mk}
 
   // initialize
@@ -948,7 +989,7 @@ intrinsic TraceRecurse(Mk::ModFrmHilD, mm::RngOrdIdl, nn::RngOrdIdl) -> Any
     // initialize
     a,b,c := Explode(t);
     // Compute trace of T(b) * D(c) on Mk
-    x := (1/#C) * &+[ chi( H[aa] ) * TraceProduct(Mk, b, Classrep(c * aa) : precomp := true) : aa in C ];
+    x := (1/#C) * &+[ chi( H[aa] ) * TraceProduct(Mk, b, Classrep(c * aa) : precomp := true, UseCache := UseCache, Cache := Cache) : aa in C ];
     // x := (1/#C) * &+[ chi( H[aa] ) * TraceProduct(Mk, b, Classrep(c * aa)) : aa in C ];
     // Eisenstein correction factor
     x +:= CorrectionFactor(Mk, b) * chi( c );
