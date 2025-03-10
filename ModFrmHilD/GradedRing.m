@@ -252,9 +252,12 @@ end intrinsic;
 intrinsic TracePrecomputationByIdeal(M::ModFrmHilDGRng, mm::RngOrdIdl : UseCache := false, Cache := AssociativeArray()) -> Assoc
   {}
   if not IsDefined(TracePrecomputation(M),mm) then
-    HMFTracePrecomputation(M,[mm] : UseCache := UseCache, Cache := Cache);
     vprintf HilbertModularForms, 1 :
       "running precomputation for ideal %o. \n", IdealOneLine(mm);
+    t0 := Cputime();
+    HMFTracePrecomputation(M,[mm] : UseCache := UseCache, Cache := Cache);
+    t := Cputime() - t0;
+    vprintf HilbertModularForms, 1 : "took %o seconds. \n", t;
   end if;
   return TracePrecomputation(M)[mm];
 end intrinsic;

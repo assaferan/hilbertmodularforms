@@ -816,6 +816,7 @@ intrinsic ClassNumberandUnitIndex(ZF::RngOrd, d::RngOrdElt, hplus::RngIntElt : P
 
   // Preliminaries //
   K := ext<NumberField(ZF) | Polynomial([-d,0,1]) >; // Field K/F x^2 - d
+  vprintf HMFTrace, 1 : "d = %o\n", d;
   // Magma requires absolute extensions for class number and units
   Kabs := AbsoluteField(K);
 

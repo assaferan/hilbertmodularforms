@@ -186,7 +186,7 @@ intrinsic CuspFormBasisViaTrace(Mk::ModFrmHilD : IdealClassesSupport:=false, fai
     vtime HilbertModularForms:
     PrecomputeTraceForms(M, aas);
     */
-
+    // time _ := eval Read("absolute_field.m") cat "test(slow_disc); return 1+1;";
     // Check for linear dependence
     B cat:= [TraceForm(Mk,aa : UseCache := UseCache, Cache := Cache) : aa in aas];
     B := (#B ne 0) select Basis(B) else B;
