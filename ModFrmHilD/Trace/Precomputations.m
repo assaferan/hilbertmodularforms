@@ -1148,7 +1148,7 @@ intrinsic HMFTracePrecomputation(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : Save
   ];
   */
 
-  import "absolute_field.m" : slow_disc, class_number_and_disc, coerce_sub;
+  import "absolute_field.m" : slow_disc, fast_disc, class_number_and_disc, coerce_sub;
 
   // Third pass. Compute ring of integers, class numbers, and unit index for new keys
   NK := RDiscs diff Keys(B);
@@ -1159,7 +1159,7 @@ intrinsic HMFTracePrecomputation(M::ModFrmHilDGRng, L::SeqEnum[RngOrdIdl] : Save
   for d in NK do
     // h, w, DD := ClassNumberandUnitIndex(ZF, d, hplus : UseCache := UseCache, Cache := Cache); // Class group of K and Hasse Unit index
     // !!! This change makes an improvement of x 4, no idea why!!!
-    h, w, DD := class_number_and_disc(ZF, d, slow_disc, coerce_sub);
+    h, w, DD := class_number_and_disc(ZF, d, fast_disc, coerce_sub);
     // K = F(sqrt(-d))
     // h = h(K)
     // DD = disc(K)
