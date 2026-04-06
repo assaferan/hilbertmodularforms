@@ -1,13 +1,13 @@
-import !"Geometry/ModFrmHil/definite.m":
+import "definite.m":
   _ResidueMatrixRing,
   HMSDF;
-import !"Geometry/ModFrmHil/hackobj.m" :
+import "hackobj.m" :
   Ambient,
   BMF_with_ambient,
   IsBianchi,
   TopAmbient;
 
-import !"Geometry/ModFrmHil/hecke.m" :
+import "hecke.m" :
   CharacteristicPolynomialViaCRT,
   NewformsOfDegree1Implemented,
   basis_is_honest,
@@ -20,7 +20,7 @@ import !"Geometry/ModFrmHil/hecke.m" :
   red_eigenvector,
   reduction;
 
-import !"Geometry/ModFrmHil/precompute.m" :
+import "precompute.m" :
   get_rids;
 
 import !"Geometry/ModFrmHil/indefinite.m" : ElementOfNormMinusOne;

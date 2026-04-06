@@ -1,7 +1,7 @@
 intrinsic EisensteinSeries(
   Mk::ModFrmHilD,
-  eta::GrpHeckeElt,
-  psi::GrpHeckeElt
+  eta::.,
+  psi::.
   :
   dd:=1,
   Coefficients:=false
@@ -9,6 +9,10 @@ intrinsic EisensteinSeries(
   {Return the Eisenstein series E_k(eta,psi)(dd*z) in M_k(N, eta*psi), where aa*bb*dd | N and aa, bb is the modulus of eta, psi, respectively.
   One may pass the coefficients matchng the output of EisensteinCoefficients, to skip calling it.
   }
+  require Type(eta) eq GrpHeckeElt :
+         "The character eta must be a Hecke character (GrpHeckeElt)";
+  require Type(psi) eq GrpHeckeElt :
+         "The character psi must be a Hecke character (GrpHeckeElt)";
   require &and[Conductor(c) eq Modulus(c) : c in [* eta, psi *]]: "characters need to be primitive";
   M := Parent(Mk);
   k := Weight(Mk);
@@ -63,10 +67,14 @@ end intrinsic;
 intrinsic EisensteinConstantCoefficient(
     M::ModFrmHilDGRng,
     Weight::SeqEnum[RngIntElt],
-    eta::GrpHeckeElt,
-    psi::GrpHeckeElt
+    eta::.,
+    psi::.
     ) -> Tup
   {return an associative array with constant coefficients indexed by bb}
+  require Type(eta) eq GrpHeckeElt :
+         "The character eta must be a Hecke character (GrpHeckeElt)";
+  require Type(psi) eq GrpHeckeElt :
+         "The character psi must be a Hecke character (GrpHeckeElt)";
   // We are following the notation in Section 2.2 of Dasgupta, Darmon, Pollack - Hilbert Modular Forms and the Gross-Stark Conjecture
   aa := Modulus(eta); // aa := Conductor(eta);
   bb := Modulus(psi); // bb := Conductor(psi);
@@ -127,13 +135,16 @@ end intrinsic;
 intrinsic EisensteinCoefficients(
   M::ModFrmHilDGRng,
   Weight::SeqEnum[RngIntElt],
-  eta::GrpHeckeElt,
-  psi::GrpHeckeElt,
+  eta::.,
+  psi::.,
   ideals::SeqEnum[RngOrdIdl]
   ) -> Tup
   {return two associative arrays, the first one with constant coefficients indexed by bb, and the other with a_nn with nn in ideals}
 
-
+  require Type(eta) eq GrpHeckeElt :
+         "The character eta must be a Hecke character (GrpHeckeElt)";
+  require Type(psi) eq GrpHeckeElt :
+         "The character psi must be a Hecke character (GrpHeckeElt)";
   // We are following the notation in Section 2.2 of Dasgupta, Darmon, Pollack - Hilbert Modular Forms and the Gross-Stark Conjecture
   aa := Modulus(eta); // aa := Conductor(eta);
   bb := Modulus(psi); // bb := Conductor(psi);
@@ -174,8 +185,10 @@ intrinsic EisensteinCoefficients(
 end intrinsic;
 
 //Toolbox function to use in the Eisenstein series function--gives us an L value
-intrinsic LValue_Recognized(M::ModFrmHilDGRng, k::RngIntElt, psi::GrpHeckeElt) -> FldNumElt
+intrinsic LValue_Recognized(M::ModFrmHilDGRng, k::RngIntElt, psi::.) -> FldNumElt
   {This is a toolbox function to compute L values in the right space}
+  require Type(psi) eq GrpHeckeElt :
+         "The character psi must be a Hecke character (GrpHeckeElt)";
   require IsPrimitive(psi): "Hecke character must be primitive";
   if not IsDefined(M`LValues, Parent(psi))  then
     M`LValues[Parent(psi)] := AssociativeArray();

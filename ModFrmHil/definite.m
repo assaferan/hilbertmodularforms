@@ -14,7 +14,7 @@ freeze;
 
 import "hecke_field.m" : DegeneracyMapDomain, WeightRepresentation;
 import "hecke.m" : please_report, pseudo_inverse, basis_is_honest;
-import !"Geometry/ModFrmHil/precompute.m" : get_rids, get_tps;
+import "precompute.m" : get_rids, get_tps;
 import !"Geometry/ModFrmHil/proj1.m" : residue_class_reps;
 
 debug := false;

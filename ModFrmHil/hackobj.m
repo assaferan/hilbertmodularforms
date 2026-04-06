@@ -620,7 +620,7 @@ end intrinsic;
 
 // TODO abhijitm - these will all be collapsed next commit
 
-intrinsic HilbertCuspForms(F::FldNum, N::RngOrdIdl, chi::GrpHeckeElt,
+intrinsic HilbertCuspForms(F::FldNum, N::RngOrdIdl, chi::.,
 			   k::SeqEnum[RngIntElt] :
 			   QuaternionOrder:=0) -> ModFrmHil
 {The space of Hilbert modular forms over the totally real number field F,
@@ -630,6 +630,8 @@ intrinsic HilbertCuspForms(F::FldNum, N::RngOrdIdl, chi::GrpHeckeElt,
  If the optional argument QuaternionOrder is specified, this order
  will be used for all computations of the space.}
 
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   require NumberField(Order(N)) eq F :
          "The level N must be an ideal in the base field";
   require IsAbsoluteField(F) :
@@ -650,22 +652,26 @@ intrinsic HilbertCuspForms(F::FldNum, N::RngOrdIdl, chi::GrpHeckeElt,
   return HMF(F, N, k : Chi := chi, QuaternionOrder:=QuaternionOrder);
 end intrinsic;
 
-intrinsic HilbertCuspForms(F::FldNum, N::RngOrdIdl, chi::GrpHeckeElt,
+intrinsic HilbertCuspForms(F::FldNum, N::RngOrdIdl, chi::.,
 			   k::RngIntElt : QuaternionOrder:=0) -> ModFrmHil
 {"} // "
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   k := [k : i in [1..Degree(F)]];
   return HilbertCuspForms(F, N, chi, k : QuaternionOrder:=QuaternionOrder);
 end intrinsic;
 
-intrinsic HilbertCuspForms(F::FldNum, N::RngOrdIdl, chi::GrpHeckeElt
+intrinsic HilbertCuspForms(F::FldNum, N::RngOrdIdl, chi::.
 			   : QuaternionOrder:=0)
        -> ModFrmHil
 {"} // "
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   k := [2 : i in [1..Degree(F)]];
   return HilbertCuspForms(F, N, chi, k : QuaternionOrder:=QuaternionOrder);
 end intrinsic;
 
-intrinsic HilbertCuspForms(F::FldRat, N::RngInt, chi::GrpHeckeElt,
+intrinsic HilbertCuspForms(F::FldRat, N::RngInt, chi::.,
 			   k::RngIntElt : QuaternionOrder:=0)
        -> ModFrmHil
 {The space of modular forms over the rationals with level N, character chi and weight k
@@ -673,42 +679,54 @@ intrinsic HilbertCuspForms(F::FldRat, N::RngInt, chi::GrpHeckeElt,
  If the optional argument QuaternionOrder is specified, this quaternion order
  will be used for all computations of the space.}
 
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   require k eq 2 :
     "Over Rationals(), only implemented for weight 2.  Use RationalsAsNumberField() instead.";
   return HMF(F, N, [k] : Chi := chi, QuaternionOrder:=QuaternionOrder );
 end intrinsic;
 
-intrinsic HilbertCuspForms(F::FldRat, N::RngIntElt, chi::GrpHeckeElt,
+intrinsic HilbertCuspForms(F::FldRat, N::RngIntElt, chi::.,
 		           k::RngIntElt : QuaternionOrder:=0) -> ModFrmHil
 {"} // "
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   require k eq 2 :
     "Over Rationals(), only implemented for weight 2.  Use RationalsAsNumberField() instead.";
   return HMF(F, N*Integers(), [k] : Chi := chi, QuaternionOrder:=QuaternionOrder );
 end intrinsic;
 
-intrinsic HilbertCuspForms(F::FldRat, N::RngInt, chi::GrpHeckeElt,
+intrinsic HilbertCuspForms(F::FldRat, N::RngInt, chi::.,
 		           k::SeqEnum[RngIntElt] : QuaternionOrder:=0) -> ModFrmHil
 {"} // "
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   require k eq [2] :
     "Over Rationals(), only implemented for weight 2.  Use RationalsAsNumberField() instead.";
   return HMF(F, N, k : Chi := chi, QuaternionOrder:=QuaternionOrder );
 end intrinsic;
 
-intrinsic HilbertCuspForms(F::FldRat, N::RngIntElt, chi::GrpHeckeElt,
+intrinsic HilbertCuspForms(F::FldRat, N::RngIntElt, chi::.,
 			   k::SeqEnum[RngIntElt] : QuaternionOrder:=0) -> ModFrmHil
 {"} // "
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   require k eq [2] :
     "Over Rationals(), only implemented for weight 2.  Use RationalsAsNumberField() instead.";
   return HMF(F, N*Integers(), k : Chi := chi, QuaternionOrder:=QuaternionOrder );
 end intrinsic;
 
-intrinsic HilbertCuspForms(F::FldRat, N::RngInt, chi::GrpHeckeElt : QuaternionOrder:=0) -> ModFrmHil
+intrinsic HilbertCuspForms(F::FldRat, N::RngInt, chi::. : QuaternionOrder:=0) -> ModFrmHil
 {"} // "
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   return HMF(F, N, [2] : Chi := chi, QuaternionOrder:=QuaternionOrder );
 end intrinsic;
 
-intrinsic HilbertCuspForms(F::FldRat, N::RngIntElt, chi::GrpHeckeElt : QuaternionOrder:=0) -> ModFrmHil
+intrinsic HilbertCuspForms(F::FldRat, N::RngIntElt, chi::. : QuaternionOrder:=0) -> ModFrmHil
 {"} // "
+  require Type(chi) eq GrpHeckeElt :
+         "The character chi must be a Hecke character (GrpHeckeElt)";
   return HMF(F, N*Integers(), [2] : Chi := chi, QuaternionOrder:=QuaternionOrder );
 end intrinsic;
 
