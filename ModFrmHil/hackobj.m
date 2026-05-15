@@ -149,8 +149,9 @@ declare attributes ModFrmHil :
 
   /////  STUFF FOR THE DEFINITE CASE 
 
-  rids,                      // Sequence of right ideal class reps for M`QuaternionOrder, chosen and 
+  rids,                      // Sequence of right ideal class reps for M`QuaternionOrder, chosen and
                              // ordered once and for all -- SHOULD ONLY BE ACCESSED VIA 'get_rids'.
+  support,                   // The support of the right ideal classes in rids.
 
   splitting_map,             // Homomorphism from QuaternionOrder(M) to 2x2 matrices over the residue ring 
                              // Integers(F)/d where d = Level(M)/Discriminant(Algebra(QuaternionOrder(M)))
@@ -1377,7 +1378,7 @@ declare attributes ModFrmHilElt :
 
   best_column,                  // [temp?] used in HeckeEigenvalue
 
-  EK, tEK, eEK;                 // [temp?] used in Eigenform (METHOD 3 and 4)
+  EK, tEK, eEK, emb_K_EK;                 // [temp?] used in Eigenform (METHOD 3 and 4)
 
 /****************   Hacking for ModFrmHilElt   *****************/
 

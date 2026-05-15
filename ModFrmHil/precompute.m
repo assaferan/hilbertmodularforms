@@ -501,7 +501,7 @@ end function;
 // such that P*Ii < t*Ij < Ii and the size of (t*Ij)\Ii is Norm(P)^2
 // (Note that when eP > 1, we don't remove the "non-Hecke elements" here)
 
-procedure precompute_tps(OH, P, ridls, record_idx, rows)
+procedure precompute_tps(OH, P, ridls, record_idx, rows : support:=[])
 
   H := Algebra(OH);
   F := BaseField(H);  
@@ -870,7 +870,8 @@ ii := Min([i : i in [1..#ords] | #ords_short_vals[i] gt 0 ] cat [1]);
       ridls_colonZBs := OH`RightIdealClasses[record_idx]`rids_colonZBs;
       ridls_colons := OH`RightIdealClasses[record_idx]`rids_colons;
 
-      for j := 1 to h do 
+      mod_units := [false : j in [1..h]];
+      for j := 1 to h do
         if j notin rows then
           Append(~ts_raw, [[] : i in [1..h]]);
           continue;
@@ -918,40 +919,45 @@ ii := Min([i : i in [1..#ords] | #ords_short_vals[i] gt 0 ] cat [1]);
 
         // We first check if we can find neighboring ideals with current implementation
         // If there aren't many elements, it is faster to simply count them
-        can_find_nbrs := [true : i in [1..h]];
-        for i in inds do
-          g := ridls_colon_norms_gens[j][i] * gP;
-          discO := (Type(ZF) eq RngInt) select Discriminant(OH)*Integers()
-                        else Discriminant(OH);
-          nmI := (Type(ZF) eq RngInt) select Norm(ridls_colons[<j,i>])*Integers()
-                        else Norm(ridls_colons[<j,i>]);
-          if (g*OF + discO*nmI ne 1*ZF) or (not IsSquarefree(g*ZF)) then
-            can_find_nbrs[i] := false;
-          end if;
-          num_sv := 0;
-          for u in pos_units_mod_norms[i] do
-            gram, b := twisted_trace_form(ridls_colonZBs[<j,i>], u*g);
-            L := LatticeWithGram(gram);
-            num_sv +:= #ShortVectors(L,b,b);
+        can_find_nbrs := [false : i in [1..h]];
+
+        // even if norm is coprime, the support might not be
+        if P notin support then
+          can_find_nbrs := [true : i in [1..h]];
+          for i in inds do
+            g := ridls_colon_norms_gens[j][i] * gP;
+            discO := (Type(ZF) eq RngInt) select Discriminant(OH)*Integers()
+                          else Discriminant(OH);
+            nmI := (Type(ZF) eq RngInt) select Norm(ridls_colons[<j,i>])*Integers()
+                          else Norm(ridls_colons[<j,i>]);
+            if (g*OF + discO*nmI ne 1*ZF) or (not IsSquarefree(g*ZF)) then
+              can_find_nbrs[i] := false;
+            end if;
+            num_sv := 0;
+            for u in pos_units_mod_norms[i] do
+              gram, b := twisted_trace_form(ridls_colonZBs[<j,i>], u*g);
+              L := LatticeWithGram(gram);
+              num_sv +:= #ShortVectors(L,b,b);
+            end for;
+            // print "num_sv = ", num_sv;
+            num_units := #NormOneGroup(LeftOrder(ridls_colons[<j,i>]) : ModScalars);
+            // We compare the number of short vectors to the average number of elements with required norm
+            // print "lhs = ", #inds*num_sv;
+            // print "rhs = ", num_units*num;
+            if (#inds*num_sv le num_units*num) then
+              can_find_nbrs[i] := false;
+            end if;
           end for;
-          // print "num_sv = ", num_sv;
-          num_units := #NormOneGroup(LeftOrder(ridls_colons[<j,i>]) : ModScalars);
-          // We compare the number of short vectors to the average number of elements with required norm
-          // print "lhs = ", #inds*num_sv;
-          // print "rhs = ", num_units*num;
-          if (#inds*num_sv le num_units*num) then
-            can_find_nbrs[i] := false;
-          end if;
-        end for;
+        end if;
         
-        mod_units := &and can_find_nbrs and (not debug); // in debug we would want to compare results
+        mod_units[j] := &and can_find_nbrs and (not debug); // in debug we would want to compare results
         for i in inds do
           g := ridls_colon_norms_gens[j][i] * gP;
           for u in pos_units_mod_norms[i] do
             if not can_find_nbrs[i] then
               bool, elts := has_element_of_norm(ridls_colonZBs[<j,i>], u*g : all);
             else
-              elts := ElementsOfNorm(ridls_colons[<j,i>], u*g : ModUnits := mod_units);
+              elts := ElementsOfNorm(ridls_colons[<j,i>], u*g : ModUnits := mod_units[j]);
               bool := not IsEmpty(elts);
               if debug then
                 bool_old, elts_old := has_element_of_norm(ridls_colonZBs[<j,i>], u*g : all);
@@ -983,77 +989,77 @@ ii := Min([i : i in [1..#ords] | #ords_short_vals[i] gt 0 ] cat [1]);
         return {-s lt s select -s else s : s in S};
       end function;
       
-      if not mod_units then
-        inds := [(j in rows) select inds_for_j(j) else [] : j in [1..h]];
-        allinds := Seqset(&cat inds);
-        noums := AssociativeArray(allinds);
-        for i in allinds do 
-          noumsi := ridls[i]`LeftOrder`norm_one_units_mod_scalars;
-          assert Universe(noumsi) eq H;
-          Exclude(~noumsi, H!1);
-          Exclude(~noumsi, H!-1);
-          noums[i] := noumsi;
-        end for;
+      not_mod_unit_rows := [j : j in rows | not mod_units[j]];
+      mod_unit_rows := [j : j in rows | mod_units[j]];
+      inds := [(j in not_mod_unit_rows) select inds_for_j(j) else [] : j in [1..h]];
+      allinds := Seqset(&cat inds);
+      noums := AssociativeArray(allinds);
+      for i in allinds do
+        noumsi := ridls[i]`LeftOrder`norm_one_units_mod_scalars;
+        assert Universe(noumsi) eq H;
+        Exclude(~noumsi, H!1);
+        Exclude(~noumsi, H!-1);
+        noums[i] := noumsi;
+      end for;
 
-        vprintf ModFrmHil, 2: "Choosing representatives modulo left multiplication by units: ";
-        vtime ModFrmHil, 2:
+      vprintf ModFrmHil, 2: "Choosing representatives modulo left multiplication by units: ";
+      vtime ModFrmHil, 2:
 
-        for j in rows do
-          for i in inds[j] do 
-            ts := [H| ];
-            for ie := 1 to #ts_raw[j][i] do 
-              elts := ts_raw[j][i][ie]; 
-              us := noums[i];
-              // Discard repeats modulo left mult by the norm-one-units us;
-              // here elts contains full orbits mod +-1,
-              // and us are the units mod +-1
-              length := 1+#us;
-              if length eq 1 then
-                ts cat:= elts;
-              elif #elts eq length then
-                Append(~ts, elts[1]);
-              else
-                elts := normalize(elts);
-                while true do
-                  // assert #elts ge length;
-                  // assert #elts mod length eq 0;
-                  e1 := Rep(elts);
-                  Append(~ts, e1);
-                  if #elts eq length then
-                    // the current elts form precisely one orbit
-                    break;
-                  else
-                    Exclude(~elts, e1);
-                    orbit := normalize({H| u*e1 : u in us});
-                    // assert orbit subset elts;
-                    elts diff:= orbit;
-                  end if;
-                end while;
-              end if;
-            end for; // ie
-
-
-            if debug and small_prime then // this checks the two methods against eachother
-              bool, tpsji := IsDefined(tps, <j,i>); assert bool;
-              assert #ts eq #tpsji;
-              for t in ts do 
-              assert #[tt : tt in tpsji | tt/t in  LeftOrder(ridls[i])] eq 1; 
-              end for;
-              for t in tpsji do 
-                assert #[tt : tt in ts | tt/t in  LeftOrder(ridls[i])] eq 1; 
-              end for;
+      for j in not_mod_unit_rows do
+        for i in inds[j] do
+          ts := [H| ];
+          for ie := 1 to #ts_raw[j][i] do
+            elts := ts_raw[j][i][ie];
+            us := noums[i];
+            // Discard repeats modulo left mult by the norm-one-units us;
+            // here elts contains full orbits mod +-1,
+            // and us are the units mod +-1
+            length := 1+#us;
+            if length eq 1 then
+              ts cat:= elts;
+            elif #elts eq length then
+              Append(~ts, elts[1]);
+            else
+              elts := normalize(elts);
+              while true do
+                // assert #elts ge length;
+                // assert #elts mod length eq 0;
+                e1 := Rep(elts);
+                Append(~ts, e1);
+                if #elts eq length then
+                  // the current elts form precisely one orbit
+                  break;
+                else
+                  Exclude(~elts, e1);
+                  orbit := normalize({H| u*e1 : u in us});
+                  // assert orbit subset elts;
+                  elts diff:= orbit;
+                end if;
+              end while;
             end if;
+          end for; // ie
 
-            tps[<j,i>] := ts;
-          end for; // i
-        end for; // j
-      else
-        for j in [1..h] do
-          for i in [1..h] do
-            tps[<j,i>] := &cat[ts : ts in ts_raw[j][i]];
-          end for;
+
+          if debug and small_prime then // this checks the two methods against eachother
+            bool, tpsji := IsDefined(tps, <j,i>); assert bool;
+            assert #ts eq #tpsji;
+            for t in ts do
+            assert #[tt : tt in tpsji | tt/t in  LeftOrder(ridls[i])] eq 1;
+            end for;
+            for t in tpsji do
+              assert #[tt : tt in ts | tt/t in  LeftOrder(ridls[i])] eq 1;
+            end for;
+          end if;
+
+          tps[<j,i>] := ts;
+        end for; // i
+      end for; // j
+
+      for j in mod_unit_rows do
+        for i in [1..h] do
+          tps[<j,i>] := &cat[ts : ts in ts_raw[j][i]];
         end for;
-      end if;
+      end for;
     end if; // small_prime
     IndentPop();
 
@@ -1123,8 +1129,8 @@ end function;
 // !! ALWAYS ACCESS/CACHE THE RIGHT IDEAL REPS FOR M VIA THIS !!
 
 function get_rids(M)
-  if assigned M`rids then 
-    return M`rids;
+  if assigned M`rids then
+    return M`rids, M`support;
   elif assigned M`Ambient then
     return get_rids(M`Ambient);
   end if;
@@ -1136,31 +1142,34 @@ function get_rids(M)
 
   // Use stored rids if their support is prime to Level(M)
   if assigned OA`RightIdealClasses then
-    for rec in OA`RightIdealClasses do 
+    for rec in OA`RightIdealClasses do
       if forall {P : P in rec`support | P + N eq one} then
         M`rids := rec`rids;
-        return M`rids;
+        M`support := rec`support;
+        return M`rids, rec`support;
       end if;
     end for;
   end if;
 
-  // If stored rids have wrong support, convert them to rids with suitable support 
+  // If stored rids have wrong support, convert them to rids with suitable support
   if assigned OA`RightIdealClasses and #OA`RightIdealClasses gt 0 then
     supp1 := OA`RightIdealClasses[1]`support;
     rids1 := OA`RightIdealClasses[1]`rids;
     // convert_rids assumes support coprime to support of rids1
     // TO DO: what num to use here? using more than 1, to avoid deep searches (hopefully)
-    support := support_for_rids(M : coprime_to := &*supp1, 
+    support := support_for_rids(M : coprime_to := &*supp1,
                                     num := Floor(Sqrt(Degree(OK))) );
     M`rids := convert_rids(rids1, support);
-    return M`rids;
+    M`support := support;
+    return M`rids, support;
   end if;
 
   // Computing rids for OA for the first time
   support := support_for_rids(M : norm_gt:=1);
   M`rids := RightIdealClassesAndOrders(OA : Support:=support,
                                             compute_order_classes:=false);
-  return M`rids;
+  M`support := support;
+  return M`rids, support;
 end function;
 
 // Access or compute the tps for p
@@ -1169,10 +1178,11 @@ end function;
 forward get_tps_for_rids, convert_tps;
 
 function get_tps(M, p : rows:=0)
-  return get_tps_for_rids(QuaternionOrder(M), get_rids(M), p : rows:=rows);
+  rids, support := get_rids(M);
+  return get_tps_for_rids(QuaternionOrder(M), rids, p : rows:=rows, support:=support);
 end function;
 
-function get_tps_for_rids(OA, rids, p : rows:=0)
+function get_tps_for_rids(OA, rids, p : rows:=0, support:=[])
   h := #rids;
   if rows cmpeq 0 then
     rows := [1..h];
@@ -1237,8 +1247,8 @@ function get_tps_for_rids(OA, rids, p : rows:=0)
   end if;
   OA`RightIdealClasses[idx] := rec;
 
-  precompute_tps(OA, p, rids, idx, new_rows); 
-  // This caches them in OA`RightIdealClasses[idx]`tps[p], 
+  precompute_tps(OA, p, rids, idx, new_rows : support:=support);
+  // This caches them in OA`RightIdealClasses[idx]`tps[p],
   //    and also updates OA`RightIdealClasses[idx]`tps_rows[p]
 
   return OA`RightIdealClasses[idx]`tps[p];

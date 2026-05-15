@@ -1443,7 +1443,11 @@ METHOD := M`HeckeMethod;
      vprintf ModFrmHil, 2: " (using METHOD %o)", METHOD;
      vprintf ModFrmHil: "\n"; 
 
-     nf := New(ModFrmHilElt);
+     if IsBianchi(M) then
+        nf := New(ModFrmBianchiElt);
+     else
+        nf := New(ModFrmHilElt);
+     end if;
      nf`Parent := M;
 
 if METHOD lt 3 then
@@ -1454,29 +1458,66 @@ if METHOD lt 3 then
 
      vprintf ModFrmHil: "CharacteristicPolynomial: ";
      vtime ModFrmHil:
-     chi := CharacteristicPolynomial(t);  
-     chi := ChangeRing(chi, minimal_hecke_matrix_field(M)); // decomposition over this field
-     require IsIrreducible(chi) : 
+     chi := CharacteristicPolynomial(t);
+     F := minimal_hecke_matrix_field(M);
+     Fx := PolynomialRing(F);
+     K := BaseRing(t);
+     is_sub, emb_F_K := IsSubfield(F,K);
+     assert is_sub;
+     // We need to control the embedding
+     chi := Fx![c@@emb_F_K : c in Coefficients(chi)];
+     require IsIrreducible(chi) :
             "The space M is not an irreducible module under the Hecke action";
 
-     if Degree(chi) eq 1 then 
+     if Degree(chi) eq 1 then
        E := BaseRing(chi);
        e := t[1][1];
      else
        E := NumberField(chi); e:=E.1;
      end if;
-     nf`BaseField := E;                  
+     nf`BaseField := E;
 
-     K := BaseRing(t);
      EK := CompositeFields(K, E)[1];
+     // We map out the possible embeddings
+     // as we need the following field diagram to commute
+     //      EK
+     //    /     \
+     //  E        K
+     //    \     /
+     //       F
+     //
+     if Degree(K) eq 1 then
+	 embs_K_EK := [hom<K->EK | >];
+     else
+	 rootsK := Roots(DefiningPolynomial(K), EK);
+	 embs_K_EK := [hom<K->EK | r[1]> : r in rootsK];
+     end if;
+     if Degree(E) eq 1 then
+	 embs_E_EK := [hom<E->EK | >];
+     else
+	 rootsE := Roots(DefiningPolynomial(E), EK);
+	 embs_E_EK := [hom<E->EK | r[1]> : r in rootsE];
+     end if;
+     emb_E_EK := embs_E_EK[1];
+     assert exists(emb_K_EK){sig : sig in embs_K_EK |
+			     emb_E_EK(F.1) eq sig(emb_F_K(F.1))};
 
-     tEK := ChangeRing(t, EK);
-     eEK := EK!e;
+     tEK := ChangeRing(t, EK, emb_K_EK);
+     // We choose the embedding for e according to its parent
+     if Parent(e) eq E then
+	 eEK := emb_E_EK(e);
+     elif Parent(e) eq K then
+	 eEK := emb_K_EK(e);
+     else
+	 require false:
+                 "Something went wrong in composite embeddings.";
+     end if;
 
      nf`BaseField := E;
      nf`EK := EK;
      nf`tEK := tEK;
      nf`eEK := eEK;
+     nf`emb_K_EK := emb_K_EK;
 
      vprintf ModFrmHil: "Eigenspace: ";
      vtime ModFrmHil:
@@ -1731,7 +1772,7 @@ intrinsic HeckeEigenvalue(f::ModFrmHilElt, P::Any) -> RngElt
     TP := HeckeOperatorDefiniteBig(TopAmbient(M), P : Columns:=[i]);
     assert Ncols(TP) eq n;
     TPi := ExtractBlock(TP, 1, i, n, 1);
-    vTPi := v * ChangeRing(TPi, BaseRing(v));
+    vTPi := v * ChangeRing(TPi, f`emb_K_EK);
     e := vTPi[1]/v[i];
 
   elif assigned f`coords_wrt_parent then
@@ -1739,18 +1780,18 @@ intrinsic HeckeEigenvalue(f::ModFrmHilElt, P::Any) -> RngElt
     // TO DO: correct coercions for all cases
     v := f`coords_wrt_parent;
     TP := HeckeOperator(M, P);
-    vTP := v * ChangeRing(TP, BaseRing(v));
+    vTP := v * ChangeRing(TP, f`emb_K_EK);
     assert exists(i){i : i in [1..Ncols(v)] | v[i] ne 0};
     e := vTP[i]/v[i];
-    error if vTP ne e*v, 
+    error if vTP ne e*v,
          "Form does not seem to be an eigenform!" * please_report;
 
   elif assigned f`coords_wrt_ambient then
-    
+
     // TO DO: correct coercions for all cases
     v := f`coords_wrt_ambient;
     TP := HeckeOperator(M`Ambient, P);
-    vTP := v * ChangeRing(TP, BaseRing(v));
+    vTP := v * ChangeRing(TP, f`emb_K_EK);
     assert exists(i){i : i in [1..Ncols(v)] | v[i] ne 0};
     e := vTP[i]/v[i];
     error if vTP ne e*v, 
